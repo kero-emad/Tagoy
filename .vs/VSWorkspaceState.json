@@ -1,0 +1,12 @@
+{
+  "ExpandedNodes": [
+    "",
+    "\\church",
+    "\\church\\Controllers",
+    "\\church\\Migrations",
+    "\\church\\Models",
+    "\\church\\Models\\DTO"
+  ],
+  "SelectedNode": "\\church\\Program.cs",
+  "PreviewInSolutionExplorer": false
+}

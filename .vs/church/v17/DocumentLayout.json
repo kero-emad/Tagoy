@@ -1,0 +1,810 @@
+{
+  "Version": 1,
+  "WorkspaceRootPath": "C:\\Users\\Kero\\source\\repos\\church\\",
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\Kero\\source\\repos\\church\\church\\Program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:church\\Program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\Kero\\source\\repos\\church\\church\\Controllers\\StudentsController.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:church\\Controllers\\StudentsController.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\Kero\\source\\repos\\church\\church\\Models\\DTO\\AddStudentsDTO.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:church\\Models\\DTO\\AddStudentsDTO.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\Kero\\source\\repos\\church\\church\\Models\\Students.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:church\\Models\\Students.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\Kero\\source\\repos\\church\\church\\Controllers\\UsersController.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:church\\Controllers\\UsersController.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\Kero\\source\\repos\\church\\church\\appsettings.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:church\\appsettings.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\Kero\\source\\repos\\church\\church\\appsettings.Development.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:church\\appsettings.Development.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\Kero\\source\\repos\\church\\church\\Controllers\\SubscriptionsController.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:church\\Controllers\\SubscriptionsController.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\Kero\\source\\repos\\church\\church\\Controllers\\DeletedStudentsController.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:church\\Controllers\\DeletedStudentsController.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\Kero\\source\\repos\\church\\church\\Controllers\\ServicesController.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:church\\Controllers\\ServicesController.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\Kero\\source\\repos\\church\\church\\Controllers\\ChurchesController.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:church\\Controllers\\ChurchesController.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\Kero\\source\\repos\\church\\church\\Models\\DTO\\EditUserDTO.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:church\\Models\\DTO\\EditUserDTO.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\Kero\\source\\repos\\church\\church\\Models\\DTO\\EditStudentDTO.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:church\\Models\\DTO\\EditStudentDTO.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\Kero\\source\\repos\\church\\church\\Models\\DTO\\EditDeletedStudentsDTO.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:church\\Models\\DTO\\EditDeletedStudentsDTO.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\Kero\\source\\repos\\church\\church\\Models\\DTO\\AddServiceDTO.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:church\\Models\\DTO\\AddServiceDTO.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\Kero\\source\\repos\\church\\church\\Models\\DTO\\AddChurchServiceDTO.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:church\\Models\\DTO\\AddChurchServiceDTO.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\Kero\\source\\repos\\church\\church\\Models\\DTO\\ShowAllServicesDTO.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:church\\Models\\DTO\\ShowAllServicesDTO.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\Kero\\source\\repos\\church\\church\\Models\\DTO\\ShowAllChurchesDTO.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:church\\Models\\DTO\\ShowAllChurchesDTO.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\Kero\\source\\repos\\church\\church\\Models\\context.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:church\\Models\\context.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\Kero\\source\\repos\\church\\church\\Models\\Attendance.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:church\\Models\\Attendance.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\Kero\\source\\repos\\church\\church\\Models\\Churches.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:church\\Models\\Churches.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\Kero\\source\\repos\\church\\church\\Models\\Subscriptions.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:church\\Models\\Subscriptions.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\Kero\\source\\repos\\church\\church\\Models\\Users.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:church\\Models\\Users.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\Kero\\source\\repos\\church\\church\\Models\\Services.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:church\\Models\\Services.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\Kero\\source\\repos\\church\\church\\Models\\ChurchServices.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:church\\Models\\ChurchServices.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\Kero\\source\\repos\\church\\church\\Models\\DTO\\ShowStudentDTO.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:church\\Models\\DTO\\ShowStudentDTO.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\Kero\\source\\repos\\church\\church\\Models\\DTO\\GetAllUsersDTO.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:church\\Models\\DTO\\GetAllUsersDTO.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\Kero\\source\\repos\\church\\church\\Models\\DeletedStudents.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:church\\Models\\DeletedStudents.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\Kero\\source\\repos\\church\\church\\Controllers\\WeatherForecastController.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:church\\Controllers\\WeatherForecastController.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\Kero\\source\\repos\\church\\church\\Controllers\\VisitationController.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:church\\Controllers\\VisitationController.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\Kero\\source\\repos\\church\\church\\Migrations\\20251123170306_addRoleId.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:church\\Migrations\\20251123170306_addRoleId.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\Kero\\source\\repos\\church\\church\\Models\\DTO\\RegisterDTO.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:church\\Models\\DTO\\RegisterDTO.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\Kero\\source\\repos\\church\\church\\Models\\DTO\\ShowAttendanceByMonthDTO.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:church\\Models\\DTO\\ShowAttendanceByMonthDTO.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\Kero\\source\\repos\\church\\church\\Migrations\\20251114155003_addAnotherPhoneAndNotes.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:church\\Migrations\\20251114155003_addAnotherPhoneAndNotes.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\Kero\\source\\repos\\church\\church\\WeatherForecast.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:church\\WeatherForecast.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\Kero\\source\\repos\\church\\church\\Controllers\\AttendanceController.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:church\\Controllers\\AttendanceController.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\Kero\\source\\repos\\church\\church\\Models\\DTO\\AddChurchDTO.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:church\\Models\\DTO\\AddChurchDTO.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\Kero\\source\\repos\\church\\church\\Migrations\\20251114113710_editServiceNameCode.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:church\\Migrations\\20251114113710_editServiceNameCode.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\Kero\\source\\repos\\church\\church\\Migrations\\20251114105546_editNameCode.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:church\\Migrations\\20251114105546_editNameCode.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\Kero\\source\\repos\\church\\church\\Migrations\\20251108222902_addRoleDetailsRoleId.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:church\\Migrations\\20251108222902_addRoleDetailsRoleId.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\Kero\\source\\repos\\church\\church\\Migrations\\20251013142918_addExcusedToDeletedStudents.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:church\\Migrations\\20251013142918_addExcusedToDeletedStudents.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\Kero\\source\\repos\\church\\church\\Migrations\\20251013141104_addExcused.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:church\\Migrations\\20251013141104_addExcused.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\Kero\\source\\repos\\church\\church\\Models\\Visitations.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:church\\Models\\Visitations.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\Kero\\source\\repos\\church\\church\\Migrations\\20250929124739_AddUniqueConstraintToAttendance.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:church\\Migrations\\20250929124739_AddUniqueConstraintToAttendance.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\Kero\\source\\repos\\church\\church\\Migrations\\20250929123858_makedateonly.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:church\\Migrations\\20250929123858_makedateonly.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\Kero\\source\\repos\\church\\church\\Migrations\\20250929114031_addAreaAndLocation.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:church\\Migrations\\20250929114031_addAreaAndLocation.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\Kero\\source\\repos\\church\\church\\Migrations\\20250819172404_addDeletedStudents2.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:church\\Migrations\\20250819172404_addDeletedStudents2.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\Kero\\source\\repos\\church\\church\\Migrations\\20250819172238_addDeletedStudents.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:church\\Migrations\\20250819172238_addDeletedStudents.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\Kero\\source\\repos\\church\\church\\Migrations\\20250727012007_AddLastUpdated.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:church\\Migrations\\20250727012007_AddLastUpdated.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    }
+  ],
+  "DocumentGroupContainers": [
+    {
+      "Orientation": 0,
+      "VerticalTabListWidth": 256,
+      "DocumentGroups": [
+        {
+          "DockedWidth": 200,
+          "SelectedChildIndex": 4,
+          "Children": [
+            {
+              "$type": "Bookmark",
+              "Name": "ST:0:0:{1c4feeaa-4718-4aa9-859d-94ce25d182ba}"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "StudentsController.cs",
+              "DocumentMoniker": "C:\\Users\\Kero\\source\\repos\\church\\church\\Controllers\\StudentsController.cs",
+              "RelativeDocumentMoniker": "church\\Controllers\\StudentsController.cs",
+              "ToolTip": "C:\\Users\\Kero\\source\\repos\\church\\church\\Controllers\\StudentsController.cs",
+              "RelativeToolTip": "church\\Controllers\\StudentsController.cs",
+              "ViewState": "AQIAACgAAAAAAAAAAAAAAEcAAAANAAAA",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-07-25T21:01:04.482Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 6,
+              "Title": "appsettings.Development.json",
+              "DocumentMoniker": "C:\\Users\\Kero\\source\\repos\\church\\church\\appsettings.Development.json",
+              "RelativeDocumentMoniker": "church\\appsettings.Development.json",
+              "ToolTip": "C:\\Users\\Kero\\source\\repos\\church\\church\\appsettings.Development.json",
+              "RelativeToolTip": "church\\appsettings.Development.json",
+              "ViewState": "AQIAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001642|",
+              "WhenOpened": "2025-11-18T14:38:43.98Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 5,
+              "Title": "appsettings.json",
+              "DocumentMoniker": "C:\\Users\\Kero\\source\\repos\\church\\church\\appsettings.json",
+              "RelativeDocumentMoniker": "church\\appsettings.json",
+              "ToolTip": "C:\\Users\\Kero\\source\\repos\\church\\church\\appsettings.json",
+              "RelativeToolTip": "church\\appsettings.json",
+              "ViewState": "AQIAAAAAAAAAAAAAAAAAABIAAAADAAAA",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001642|",
+              "WhenOpened": "2025-11-18T14:38:37.081Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "Program.cs",
+              "DocumentMoniker": "C:\\Users\\Kero\\source\\repos\\church\\church\\Program.cs",
+              "RelativeDocumentMoniker": "church\\Program.cs",
+              "ToolTip": "C:\\Users\\Kero\\source\\repos\\church\\church\\Program.cs",
+              "RelativeToolTip": "church\\Program.cs",
+              "ViewState": "AQIAAHwAAAAAAAAAAAAAAGUAAABVAAAA",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-11-16T14:59:31.071Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 3,
+              "Title": "Students.cs",
+              "DocumentMoniker": "C:\\Users\\Kero\\source\\repos\\church\\church\\Models\\Students.cs",
+              "RelativeDocumentMoniker": "church\\Models\\Students.cs",
+              "ToolTip": "C:\\Users\\Kero\\source\\repos\\church\\church\\Models\\Students.cs",
+              "RelativeToolTip": "church\\Models\\Students.cs",
+              "ViewState": "AQIAAAAAAAAAAAAAAAAAABMAAAAqAAAA",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-08-08T22:12:54.539Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 2,
+              "Title": "AddStudentsDTO.cs",
+              "DocumentMoniker": "C:\\Users\\Kero\\source\\repos\\church\\church\\Models\\DTO\\AddStudentsDTO.cs",
+              "RelativeDocumentMoniker": "church\\Models\\DTO\\AddStudentsDTO.cs",
+              "ToolTip": "C:\\Users\\Kero\\source\\repos\\church\\church\\Models\\DTO\\AddStudentsDTO.cs",
+              "RelativeToolTip": "church\\Models\\DTO\\AddStudentsDTO.cs",
+              "ViewState": "AQIAAAgAAAAAAAAAAAAAABIAAAAKAAAA",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-07-27T01:12:58.355Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 4,
+              "Title": "UsersController.cs",
+              "DocumentMoniker": "C:\\Users\\Kero\\source\\repos\\church\\church\\Controllers\\UsersController.cs",
+              "RelativeDocumentMoniker": "church\\Controllers\\UsersController.cs",
+              "ToolTip": "C:\\Users\\Kero\\source\\repos\\church\\church\\Controllers\\UsersController.cs",
+              "RelativeToolTip": "church\\Controllers\\UsersController.cs",
+              "ViewState": "AQIAAF8AAAAAAAAAAAAAAKEAAAAAAAAA",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-08-07T10:36:38.6Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 7,
+              "Title": "SubscriptionsController.cs",
+              "DocumentMoniker": "C:\\Users\\Kero\\source\\repos\\church\\church\\Controllers\\SubscriptionsController.cs",
+              "RelativeDocumentMoniker": "church\\Controllers\\SubscriptionsController.cs",
+              "ToolTip": "C:\\Users\\Kero\\source\\repos\\church\\church\\Controllers\\SubscriptionsController.cs",
+              "RelativeToolTip": "church\\Controllers\\SubscriptionsController.cs",
+              "ViewState": "AQIAAN8AAAAAAAAAAAAcwPAAAAAAAAAA",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-07-25T21:46:04.811Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 9,
+              "Title": "ServicesController.cs",
+              "DocumentMoniker": "C:\\Users\\Kero\\source\\repos\\church\\church\\Controllers\\ServicesController.cs",
+              "RelativeDocumentMoniker": "church\\Controllers\\ServicesController.cs",
+              "ToolTip": "C:\\Users\\Kero\\source\\repos\\church\\church\\Controllers\\ServicesController.cs",
+              "RelativeToolTip": "church\\Controllers\\ServicesController.cs",
+              "ViewState": "AQIAABEAAAAAAAAAAAAAABcAAAAjAAAA",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-11-14T11:44:24.118Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 8,
+              "Title": "DeletedStudentsController.cs",
+              "DocumentMoniker": "C:\\Users\\Kero\\source\\repos\\church\\church\\Controllers\\DeletedStudentsController.cs",
+              "RelativeDocumentMoniker": "church\\Controllers\\DeletedStudentsController.cs",
+              "ToolTip": "C:\\Users\\Kero\\source\\repos\\church\\church\\Controllers\\DeletedStudentsController.cs",
+              "RelativeToolTip": "church\\Controllers\\DeletedStudentsController.cs",
+              "ViewState": "AQIAAFwAAAAAAAAAAAAuwHIAAAAAAAAA",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-08-19T17:41:55.143Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 10,
+              "Title": "ChurchesController.cs",
+              "DocumentMoniker": "C:\\Users\\Kero\\source\\repos\\church\\church\\Controllers\\ChurchesController.cs",
+              "RelativeDocumentMoniker": "church\\Controllers\\ChurchesController.cs",
+              "ToolTip": "C:\\Users\\Kero\\source\\repos\\church\\church\\Controllers\\ChurchesController.cs",
+              "RelativeToolTip": "church\\Controllers\\ChurchesController.cs",
+              "ViewState": "AQIAADsAAAAAAAAAAAAAAEMAAAAJAAAA",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-11-14T10:58:39.525Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 11,
+              "Title": "EditUserDTO.cs",
+              "DocumentMoniker": "C:\\Users\\Kero\\source\\repos\\church\\church\\Models\\DTO\\EditUserDTO.cs",
+              "RelativeDocumentMoniker": "church\\Models\\DTO\\EditUserDTO.cs",
+              "ToolTip": "C:\\Users\\Kero\\source\\repos\\church\\church\\Models\\DTO\\EditUserDTO.cs",
+              "RelativeToolTip": "church\\Models\\DTO\\EditUserDTO.cs",
+              "ViewState": "AQIAAAAAAAAAAAAAAAAAAAcAAAAyAAAA",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-12-07T17:13:19.873Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 12,
+              "Title": "EditStudentDTO.cs",
+              "DocumentMoniker": "C:\\Users\\Kero\\source\\repos\\church\\church\\Models\\DTO\\EditStudentDTO.cs",
+              "RelativeDocumentMoniker": "church\\Models\\DTO\\EditStudentDTO.cs",
+              "ToolTip": "C:\\Users\\Kero\\source\\repos\\church\\church\\Models\\DTO\\EditStudentDTO.cs",
+              "RelativeToolTip": "church\\Models\\DTO\\EditStudentDTO.cs",
+              "ViewState": "AQIAAAcAAAAAAAAAAAAYwBMAAAAxAAAA",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-09-29T11:39:03.409Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 13,
+              "Title": "EditDeletedStudentsDTO.cs",
+              "DocumentMoniker": "C:\\Users\\Kero\\source\\repos\\church\\church\\Models\\DTO\\EditDeletedStudentsDTO.cs",
+              "RelativeDocumentMoniker": "church\\Models\\DTO\\EditDeletedStudentsDTO.cs",
+              "ToolTip": "C:\\Users\\Kero\\source\\repos\\church\\church\\Models\\DTO\\EditDeletedStudentsDTO.cs",
+              "RelativeToolTip": "church\\Models\\DTO\\EditDeletedStudentsDTO.cs",
+              "ViewState": "AQIAAAAAAAAAAAAAAAAAAAQAAAAYAAAA",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-10-07T13:26:22.205Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 14,
+              "Title": "AddServiceDTO.cs",
+              "DocumentMoniker": "C:\\Users\\Kero\\source\\repos\\church\\church\\Models\\DTO\\AddServiceDTO.cs",
+              "RelativeDocumentMoniker": "church\\Models\\DTO\\AddServiceDTO.cs",
+              "ToolTip": "C:\\Users\\Kero\\source\\repos\\church\\church\\Models\\DTO\\AddServiceDTO.cs",
+              "RelativeToolTip": "church\\Models\\DTO\\AddServiceDTO.cs",
+              "ViewState": "AQIAAAAAAAAAAAAAAAAAAAQAAAAoAAAA",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-11-14T11:49:56.724Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 15,
+              "Title": "AddChurchServiceDTO.cs",
+              "DocumentMoniker": "C:\\Users\\Kero\\source\\repos\\church\\church\\Models\\DTO\\AddChurchServiceDTO.cs",
+              "RelativeDocumentMoniker": "church\\Models\\DTO\\AddChurchServiceDTO.cs",
+              "ToolTip": "C:\\Users\\Kero\\source\\repos\\church\\church\\Models\\DTO\\AddChurchServiceDTO.cs",
+              "RelativeToolTip": "church\\Models\\DTO\\AddChurchServiceDTO.cs",
+              "ViewState": "AQIAAAAAAAAAAAAAAAAAAAUAAAAcAAAA",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-11-14T12:00:48.903Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 16,
+              "Title": "ShowAllServicesDTO.cs",
+              "DocumentMoniker": "C:\\Users\\Kero\\source\\repos\\church\\church\\Models\\DTO\\ShowAllServicesDTO.cs",
+              "RelativeDocumentMoniker": "church\\Models\\DTO\\ShowAllServicesDTO.cs",
+              "ToolTip": "C:\\Users\\Kero\\source\\repos\\church\\church\\Models\\DTO\\ShowAllServicesDTO.cs",
+              "RelativeToolTip": "church\\Models\\DTO\\ShowAllServicesDTO.cs",
+              "ViewState": "AQIAAAAAAAAAAAAAAAAAAAYAAAAoAAAA",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-11-14T12:27:30.969Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 17,
+              "Title": "ShowAllChurchesDTO.cs",
+              "DocumentMoniker": "C:\\Users\\Kero\\source\\repos\\church\\church\\Models\\DTO\\ShowAllChurchesDTO.cs",
+              "RelativeDocumentMoniker": "church\\Models\\DTO\\ShowAllChurchesDTO.cs",
+              "ToolTip": "C:\\Users\\Kero\\source\\repos\\church\\church\\Models\\DTO\\ShowAllChurchesDTO.cs",
+              "RelativeToolTip": "church\\Models\\DTO\\ShowAllChurchesDTO.cs",
+              "ViewState": "AQIAAAAAAAAAAAAAAAAAAAYAAAAvAAAA",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-11-14T12:16:09.5Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 18,
+              "Title": "context.cs",
+              "DocumentMoniker": "C:\\Users\\Kero\\source\\repos\\church\\church\\Models\\context.cs",
+              "RelativeDocumentMoniker": "church\\Models\\context.cs",
+              "ToolTip": "C:\\Users\\Kero\\source\\repos\\church\\church\\Models\\context.cs",
+              "RelativeToolTip": "church\\Models\\context.cs",
+              "ViewState": "AQIAAAAAAAAAAAAAAAAAABEAAAAIAAAA",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-08-19T17:13:19.562Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 19,
+              "Title": "Attendance.cs",
+              "DocumentMoniker": "C:\\Users\\Kero\\source\\repos\\church\\church\\Models\\Attendance.cs",
+              "RelativeDocumentMoniker": "church\\Models\\Attendance.cs",
+              "ToolTip": "C:\\Users\\Kero\\source\\repos\\church\\church\\Models\\Attendance.cs",
+              "RelativeToolTip": "church\\Models\\Attendance.cs",
+              "ViewState": "AQIAAA8AAAAAAAAAAAAAACIAAAAAAAAA",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-07-27T01:10:50.243Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 20,
+              "Title": "Churches.cs",
+              "DocumentMoniker": "C:\\Users\\Kero\\source\\repos\\church\\church\\Models\\Churches.cs",
+              "RelativeDocumentMoniker": "church\\Models\\Churches.cs",
+              "ToolTip": "C:\\Users\\Kero\\source\\repos\\church\\church\\Models\\Churches.cs",
+              "RelativeToolTip": "church\\Models\\Churches.cs",
+              "ViewState": "AQIAAAAAAAAAAAAAAAAAAAkAAAAvAAAA",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-11-14T10:50:32.26Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 21,
+              "Title": "Subscriptions.cs",
+              "DocumentMoniker": "C:\\Users\\Kero\\source\\repos\\church\\church\\Models\\Subscriptions.cs",
+              "RelativeDocumentMoniker": "church\\Models\\Subscriptions.cs",
+              "ToolTip": "C:\\Users\\Kero\\source\\repos\\church\\church\\Models\\Subscriptions.cs",
+              "RelativeToolTip": "church\\Models\\Subscriptions.cs",
+              "ViewState": "AQIAAAwAAAAAAAAAAAA4wBYAAAABAAAA",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-07-27T01:16:05.659Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 22,
+              "Title": "Users.cs",
+              "DocumentMoniker": "C:\\Users\\Kero\\source\\repos\\church\\church\\Models\\Users.cs",
+              "RelativeDocumentMoniker": "church\\Models\\Users.cs",
+              "ToolTip": "C:\\Users\\Kero\\source\\repos\\church\\church\\Models\\Users.cs",
+              "RelativeToolTip": "church\\Models\\Users.cs",
+              "ViewState": "AQIAAAIAAAAAAAAAAAAAAAIAAAAAAAAA",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-11-14T11:09:10.605Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 23,
+              "Title": "Services.cs",
+              "DocumentMoniker": "C:\\Users\\Kero\\source\\repos\\church\\church\\Models\\Services.cs",
+              "RelativeDocumentMoniker": "church\\Models\\Services.cs",
+              "ToolTip": "C:\\Users\\Kero\\source\\repos\\church\\church\\Models\\Services.cs",
+              "RelativeToolTip": "church\\Models\\Services.cs",
+              "ViewState": "AQIAAAQAAAAAAAAAAAAuwAoAAAAxAAAA",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-10-13T14:11:48.923Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 24,
+              "Title": "ChurchServices.cs",
+              "DocumentMoniker": "C:\\Users\\Kero\\source\\repos\\church\\church\\Models\\ChurchServices.cs",
+              "RelativeDocumentMoniker": "church\\Models\\ChurchServices.cs",
+              "ToolTip": "C:\\Users\\Kero\\source\\repos\\church\\church\\Models\\ChurchServices.cs",
+              "RelativeToolTip": "church\\Models\\ChurchServices.cs",
+              "ViewState": "AQIAAAgAAAAAAAAAAAAAAA8AAAAuAAAA",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-11-14T11:08:20.674Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 25,
+              "Title": "ShowStudentDTO.cs",
+              "DocumentMoniker": "C:\\Users\\Kero\\source\\repos\\church\\church\\Models\\DTO\\ShowStudentDTO.cs",
+              "RelativeDocumentMoniker": "church\\Models\\DTO\\ShowStudentDTO.cs",
+              "ToolTip": "C:\\Users\\Kero\\source\\repos\\church\\church\\Models\\DTO\\ShowStudentDTO.cs",
+              "RelativeToolTip": "church\\Models\\DTO\\ShowStudentDTO.cs",
+              "ViewState": "AQIAAAAAAAAAAAAAAAAAAAwAAAAqAAAA",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-09-02T21:40:06.384Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 26,
+              "Title": "GetAllUsersDTO.cs",
+              "DocumentMoniker": "C:\\Users\\Kero\\source\\repos\\church\\church\\Models\\DTO\\GetAllUsersDTO.cs",
+              "RelativeDocumentMoniker": "church\\Models\\DTO\\GetAllUsersDTO.cs",
+              "ToolTip": "C:\\Users\\Kero\\source\\repos\\church\\church\\Models\\DTO\\GetAllUsersDTO.cs",
+              "RelativeToolTip": "church\\Models\\DTO\\GetAllUsersDTO.cs",
+              "ViewState": "AQIAAAAAAAAAAAAAAAAAAAUAAAAqAAAA",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-11-23T16:38:59.344Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 27,
+              "Title": "DeletedStudents.cs",
+              "DocumentMoniker": "C:\\Users\\Kero\\source\\repos\\church\\church\\Models\\DeletedStudents.cs",
+              "RelativeDocumentMoniker": "church\\Models\\DeletedStudents.cs",
+              "ToolTip": "C:\\Users\\Kero\\source\\repos\\church\\church\\Models\\DeletedStudents.cs",
+              "RelativeToolTip": "church\\Models\\DeletedStudents.cs",
+              "ViewState": "AQIAAA0AAAAAAAAAAAA+wA0AAAAxAAAA",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-08-19T17:14:16.855Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 28,
+              "Title": "WeatherForecastController.cs",
+              "DocumentMoniker": "C:\\Users\\Kero\\source\\repos\\church\\church\\Controllers\\WeatherForecastController.cs",
+              "RelativeDocumentMoniker": "church\\Controllers\\WeatherForecastController.cs",
+              "ToolTip": "C:\\Users\\Kero\\source\\repos\\church\\church\\Controllers\\WeatherForecastController.cs",
+              "RelativeToolTip": "church\\Controllers\\WeatherForecastController.cs",
+              "ViewState": "AQIAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-08-19T17:04:23.967Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 29,
+              "Title": "VisitationController.cs",
+              "DocumentMoniker": "C:\\Users\\Kero\\source\\repos\\church\\church\\Controllers\\VisitationController.cs",
+              "RelativeDocumentMoniker": "church\\Controllers\\VisitationController.cs",
+              "ToolTip": "C:\\Users\\Kero\\source\\repos\\church\\church\\Controllers\\VisitationController.cs",
+              "RelativeToolTip": "church\\Controllers\\VisitationController.cs",
+              "ViewState": "AQIAAG0AAAAAAAAAAAAAAG0AAAAxAAAA",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-09-29T11:47:02.794Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 30,
+              "Title": "20251123170306_addRoleId.cs",
+              "DocumentMoniker": "C:\\Users\\Kero\\source\\repos\\church\\church\\Migrations\\20251123170306_addRoleId.cs",
+              "RelativeDocumentMoniker": "church\\Migrations\\20251123170306_addRoleId.cs",
+              "ToolTip": "C:\\Users\\Kero\\source\\repos\\church\\church\\Migrations\\20251123170306_addRoleId.cs",
+              "RelativeToolTip": "church\\Migrations\\20251123170306_addRoleId.cs",
+              "ViewState": "AQIAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-11-23T17:03:06.721Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 31,
+              "Title": "RegisterDTO.cs",
+              "DocumentMoniker": "C:\\Users\\Kero\\source\\repos\\church\\church\\Models\\DTO\\RegisterDTO.cs",
+              "RelativeDocumentMoniker": "church\\Models\\DTO\\RegisterDTO.cs",
+              "ToolTip": "C:\\Users\\Kero\\source\\repos\\church\\church\\Models\\DTO\\RegisterDTO.cs",
+              "RelativeToolTip": "church\\Models\\DTO\\RegisterDTO.cs",
+              "ViewState": "AQIAAAQAAAAAAAAAAAAAAA4AAAATAAAA",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-11-14T12:06:13.659Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 32,
+              "Title": "ShowAttendanceByMonthDTO.cs",
+              "DocumentMoniker": "C:\\Users\\Kero\\source\\repos\\church\\church\\Models\\DTO\\ShowAttendanceByMonthDTO.cs",
+              "RelativeDocumentMoniker": "church\\Models\\DTO\\ShowAttendanceByMonthDTO.cs",
+              "ToolTip": "C:\\Users\\Kero\\source\\repos\\church\\church\\Models\\DTO\\ShowAttendanceByMonthDTO.cs",
+              "RelativeToolTip": "church\\Models\\DTO\\ShowAttendanceByMonthDTO.cs",
+              "ViewState": "AQIAAAAAAAAAAAAAAAAAAAQAAAAnAAAA",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-09-29T14:33:40.399Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 33,
+              "Title": "20251114155003_addAnotherPhoneAndNotes.cs",
+              "DocumentMoniker": "C:\\Users\\Kero\\source\\repos\\church\\church\\Migrations\\20251114155003_addAnotherPhoneAndNotes.cs",
+              "RelativeDocumentMoniker": "church\\Migrations\\20251114155003_addAnotherPhoneAndNotes.cs",
+              "ToolTip": "C:\\Users\\Kero\\source\\repos\\church\\church\\Migrations\\20251114155003_addAnotherPhoneAndNotes.cs",
+              "RelativeToolTip": "church\\Migrations\\20251114155003_addAnotherPhoneAndNotes.cs",
+              "ViewState": "AQIAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-11-14T15:50:03.732Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 34,
+              "Title": "WeatherForecast.cs",
+              "DocumentMoniker": "C:\\Users\\Kero\\source\\repos\\church\\church\\WeatherForecast.cs",
+              "RelativeDocumentMoniker": "church\\WeatherForecast.cs",
+              "ToolTip": "C:\\Users\\Kero\\source\\repos\\church\\church\\WeatherForecast.cs",
+              "RelativeToolTip": "church\\WeatherForecast.cs",
+              "ViewState": "AQIAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-11-16T15:11:21.431Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 35,
+              "Title": "AttendanceController.cs",
+              "DocumentMoniker": "C:\\Users\\Kero\\source\\repos\\church\\church\\Controllers\\AttendanceController.cs",
+              "RelativeDocumentMoniker": "church\\Controllers\\AttendanceController.cs",
+              "ToolTip": "C:\\Users\\Kero\\source\\repos\\church\\church\\Controllers\\AttendanceController.cs",
+              "RelativeToolTip": "church\\Controllers\\AttendanceController.cs",
+              "ViewState": "AQIAABIAAAAAAAAAAAAmwCMAAAAFAAAA",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-07-27T01:11:55.356Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 36,
+              "Title": "AddChurchDTO.cs",
+              "DocumentMoniker": "C:\\Users\\Kero\\source\\repos\\church\\church\\Models\\DTO\\AddChurchDTO.cs",
+              "RelativeDocumentMoniker": "church\\Models\\DTO\\AddChurchDTO.cs",
+              "ToolTip": "C:\\Users\\Kero\\source\\repos\\church\\church\\Models\\DTO\\AddChurchDTO.cs",
+              "RelativeToolTip": "church\\Models\\DTO\\AddChurchDTO.cs",
+              "ViewState": "AQIAAAAAAAAAAAAAAAAAAAUAAAAvAAAA",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-11-14T11:18:14.562Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 37,
+              "Title": "20251114113710_editServiceNameCode.cs",
+              "DocumentMoniker": "C:\\Users\\Kero\\source\\repos\\church\\church\\Migrations\\20251114113710_editServiceNameCode.cs",
+              "RelativeDocumentMoniker": "church\\Migrations\\20251114113710_editServiceNameCode.cs",
+              "ToolTip": "C:\\Users\\Kero\\source\\repos\\church\\church\\Migrations\\20251114113710_editServiceNameCode.cs",
+              "RelativeToolTip": "church\\Migrations\\20251114113710_editServiceNameCode.cs",
+              "ViewState": "AQIAAAQAAAAAAAAAAAAAAAAAAAAAAAAA",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-11-14T11:37:10.453Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 38,
+              "Title": "20251114105546_editNameCode.cs",
+              "DocumentMoniker": "C:\\Users\\Kero\\source\\repos\\church\\church\\Migrations\\20251114105546_editNameCode.cs",
+              "RelativeDocumentMoniker": "church\\Migrations\\20251114105546_editNameCode.cs",
+              "ToolTip": "C:\\Users\\Kero\\source\\repos\\church\\church\\Migrations\\20251114105546_editNameCode.cs",
+              "RelativeToolTip": "church\\Migrations\\20251114105546_editNameCode.cs",
+              "ViewState": "AQIAAAIAAAAAAAAAAAAAABAAAAAJAAAA",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-11-14T10:55:46.664Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 39,
+              "Title": "20251108222902_addRoleDetailsRoleId.cs",
+              "DocumentMoniker": "C:\\Users\\Kero\\source\\repos\\church\\church\\Migrations\\20251108222902_addRoleDetailsRoleId.cs",
+              "RelativeDocumentMoniker": "church\\Migrations\\20251108222902_addRoleDetailsRoleId.cs",
+              "ToolTip": "C:\\Users\\Kero\\source\\repos\\church\\church\\Migrations\\20251108222902_addRoleDetailsRoleId.cs",
+              "RelativeToolTip": "church\\Migrations\\20251108222902_addRoleDetailsRoleId.cs",
+              "ViewState": "AQIAACAAAAAAAAAAAAAwwCcAAAAgAAAA",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-11-08T22:29:02.442Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 40,
+              "Title": "20251013142918_addExcusedToDeletedStudents.cs",
+              "DocumentMoniker": "C:\\Users\\Kero\\source\\repos\\church\\church\\Migrations\\20251013142918_addExcusedToDeletedStudents.cs",
+              "RelativeDocumentMoniker": "church\\Migrations\\20251013142918_addExcusedToDeletedStudents.cs",
+              "ToolTip": "C:\\Users\\Kero\\source\\repos\\church\\church\\Migrations\\20251013142918_addExcusedToDeletedStudents.cs",
+              "RelativeToolTip": "church\\Migrations\\20251013142918_addExcusedToDeletedStudents.cs",
+              "ViewState": "AQIAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-10-13T14:29:18.989Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 41,
+              "Title": "20251013141104_addExcused.cs",
+              "DocumentMoniker": "C:\\Users\\Kero\\source\\repos\\church\\church\\Migrations\\20251013141104_addExcused.cs",
+              "RelativeDocumentMoniker": "church\\Migrations\\20251013141104_addExcused.cs",
+              "ToolTip": "C:\\Users\\Kero\\source\\repos\\church\\church\\Migrations\\20251013141104_addExcused.cs",
+              "RelativeToolTip": "church\\Migrations\\20251013141104_addExcused.cs",
+              "ViewState": "AQIAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-10-13T14:11:05.815Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 42,
+              "Title": "Visitations.cs",
+              "DocumentMoniker": "C:\\Users\\Kero\\source\\repos\\church\\church\\Models\\Visitations.cs",
+              "RelativeDocumentMoniker": "church\\Models\\Visitations.cs",
+              "ToolTip": "C:\\Users\\Kero\\source\\repos\\church\\church\\Models\\Visitations.cs",
+              "RelativeToolTip": "church\\Models\\Visitations.cs",
+              "ViewState": "AQIAAAIAAAAAAAAAAAAwwBgAAAAAAAAA",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-07-27T01:15:45.252Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 43,
+              "Title": "20250929124739_AddUniqueConstraintToAttendance.cs",
+              "DocumentMoniker": "C:\\Users\\Kero\\source\\repos\\church\\church\\Migrations\\20250929124739_AddUniqueConstraintToAttendance.cs",
+              "RelativeDocumentMoniker": "church\\Migrations\\20250929124739_AddUniqueConstraintToAttendance.cs",
+              "ToolTip": "C:\\Users\\Kero\\source\\repos\\church\\church\\Migrations\\20250929124739_AddUniqueConstraintToAttendance.cs",
+              "RelativeToolTip": "church\\Migrations\\20250929124739_AddUniqueConstraintToAttendance.cs",
+              "ViewState": "AQIAAAsAAAAAAAAAAAAiwCUAAAAAAAAA",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-09-29T12:47:39.832Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 44,
+              "Title": "20250929123858_makedateonly.cs",
+              "DocumentMoniker": "C:\\Users\\Kero\\source\\repos\\church\\church\\Migrations\\20250929123858_makedateonly.cs",
+              "RelativeDocumentMoniker": "church\\Migrations\\20250929123858_makedateonly.cs",
+              "ToolTip": "C:\\Users\\Kero\\source\\repos\\church\\church\\Migrations\\20250929123858_makedateonly.cs",
+              "RelativeToolTip": "church\\Migrations\\20250929123858_makedateonly.cs",
+              "ViewState": "AQIAAAoAAAAAAAAAAAAgwCMAAAAAAAAA",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-09-29T12:38:58.858Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 45,
+              "Title": "20250929114031_addAreaAndLocation.cs",
+              "DocumentMoniker": "C:\\Users\\Kero\\source\\repos\\church\\church\\Migrations\\20250929114031_addAreaAndLocation.cs",
+              "RelativeDocumentMoniker": "church\\Migrations\\20250929114031_addAreaAndLocation.cs",
+              "ToolTip": "C:\\Users\\Kero\\source\\repos\\church\\church\\Migrations\\20250929114031_addAreaAndLocation.cs",
+              "RelativeToolTip": "church\\Migrations\\20250929114031_addAreaAndLocation.cs",
+              "ViewState": "AQIAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-09-29T11:40:32.337Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 46,
+              "Title": "20250819172404_addDeletedStudents2.cs",
+              "DocumentMoniker": "C:\\Users\\Kero\\source\\repos\\church\\church\\Migrations\\20250819172404_addDeletedStudents2.cs",
+              "RelativeDocumentMoniker": "church\\Migrations\\20250819172404_addDeletedStudents2.cs",
+              "ToolTip": "C:\\Users\\Kero\\source\\repos\\church\\church\\Migrations\\20250819172404_addDeletedStudents2.cs",
+              "RelativeToolTip": "church\\Migrations\\20250819172404_addDeletedStudents2.cs",
+              "ViewState": "AQIAABUAAAAAAAAAAAAAAAAAAAAAAAAA",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-08-19T17:24:05.217Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 47,
+              "Title": "20250819172238_addDeletedStudents.cs",
+              "DocumentMoniker": "C:\\Users\\Kero\\source\\repos\\church\\church\\Migrations\\20250819172238_addDeletedStudents.cs",
+              "RelativeDocumentMoniker": "church\\Migrations\\20250819172238_addDeletedStudents.cs",
+              "ToolTip": "C:\\Users\\Kero\\source\\repos\\church\\church\\Migrations\\20250819172238_addDeletedStudents.cs",
+              "RelativeToolTip": "church\\Migrations\\20250819172238_addDeletedStudents.cs",
+              "ViewState": "AQIAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-08-19T17:22:38.673Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 48,
+              "Title": "20250727012007_AddLastUpdated.cs",
+              "DocumentMoniker": "C:\\Users\\Kero\\source\\repos\\church\\church\\Migrations\\20250727012007_AddLastUpdated.cs",
+              "RelativeDocumentMoniker": "church\\Migrations\\20250727012007_AddLastUpdated.cs",
+              "ToolTip": "C:\\Users\\Kero\\source\\repos\\church\\church\\Migrations\\20250727012007_AddLastUpdated.cs",
+              "RelativeToolTip": "church\\Migrations\\20250727012007_AddLastUpdated.cs",
+              "ViewState": "AQIAAAAAAAAAAAAAAAAAAAwAAAAJAAAA",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-07-27T01:20:08.681Z"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
