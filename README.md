@@ -74,6 +74,3 @@ The API uses JWT Bearer tokens for secure access. To authorize requests:
 1. Obtain a token via the `Users` authentication endpoint.
 2. Include the token in the `Authorization` header as: `Bearer {your_token}`.
 
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
