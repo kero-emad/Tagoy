@@ -93,6 +93,7 @@ namespace church.Controllers
                 role=addStudentsDTO.role,
                 details=addStudentsDTO.details,
                 roleId=addStudentsDTO.roleId,
+                CreatedBy=user.UserName
             };
             await context.Students.AddAsync(student);
             await context.SaveChangesAsync();
@@ -157,7 +158,9 @@ namespace church.Controllers
                     DateOfBirth = g.DateOfBirth.HasValue ? g.DateOfBirth.Value.Date : (DateTime?)null,
                     gender = g.Gender,
                     confessor=g.confessor,
-                    createdAt =g.CreatedAt
+                    createdAt =g.CreatedAt,
+                    createdBy=g.CreatedBy,
+                    updatedBy=g.UpdatedBy
 
                 }).ToListAsync();
             if (!students.Any())
@@ -214,7 +217,9 @@ namespace church.Controllers
                 area = student.area,
                 location = student.location,
                 notes=student.notes,
-                DateOfBirth = student.DateOfBirth.HasValue ? student.DateOfBirth.Value.Date : (DateTime?)null
+                DateOfBirth = student.DateOfBirth.HasValue ? student.DateOfBirth.Value.Date : (DateTime?)null,
+                CreatedBy=student.CreatedBy,
+                UpdatedBy=student.UpdatedBy,
             };
             return Ok(result);
         }
@@ -293,6 +298,7 @@ namespace church.Controllers
             if (editStudentDTO.DateOfBirth.HasValue)
                 student.DateOfBirth = editStudentDTO.DateOfBirth.Value.Date;
 
+            student.UpdatedBy = user.UserName;
 
             if (editStudentDTO.grade.HasValue)
             {
@@ -473,7 +479,7 @@ namespace church.Controllers
                 area = student.area,
                 location = student.location,
                 notes=student.notes,
-                DateOfBirth = student.DateOfBirth.HasValue ? student.DateOfBirth.Value.Date : (DateTime?)null
+                DateOfBirth = student.DateOfBirth.HasValue ? student.DateOfBirth.Value.Date : (DateTime?)null,  
             };
 
             // الأيام اللي حضرها فقط
@@ -481,6 +487,22 @@ namespace church.Controllers
                 .Where(a => a.studentID == student.Id && a.Status==Status.Present)
                 .Select(a => a.Date.Date)
                 .OrderBy(d => d)
+                .ToListAsync();
+
+            var absentDates=await context.Attendance
+                .Where(a=>a.studentID==student.Id && a.Status==Status.Absent)
+                .Select(a=>a.Date.Date)
+                .OrderBy(d => d)
+                .ToListAsync();
+
+            var excusedDates = await context.Attendance
+                .Where(a => a.studentID == student.Id && a.Status == Status.Excused)
+                .Select(a => new ExcusedDateDTO
+                {
+                    Date = a.Date.Date,
+                    Comment = a.Comment
+                })
+                .OrderBy(a => a.Date)
                 .ToListAsync();
 
             // الاشتراكات المدفوعة
@@ -516,6 +538,8 @@ namespace church.Controllers
             {
                 studentInfo,
                 attendanceDates,
+                absentDates,
+                excusedDates,
                 paidSubscriptions,
                 visitations
             };

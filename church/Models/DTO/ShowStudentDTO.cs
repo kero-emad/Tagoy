@@ -22,5 +22,8 @@
         public string? image { get; set; }
         public Gender? gender { get; set; }
         public DateTime? DateOfBirth { get; set; }
+
+        public string? CreatedBy { get; set; }
+        public string? UpdatedBy { get; set; }
     }
 }

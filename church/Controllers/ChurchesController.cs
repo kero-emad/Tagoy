@@ -70,5 +70,58 @@ namespace church.Controllers
 
             return Ok(services);
         }
+        [Authorize]
+        [HttpPut("edit/{id}")]
+        public async Task<IActionResult> editChurch(int id, [FromBody] EditChurchDTO dto)
+        {
+            var church = await context.Churches.FirstOrDefaultAsync(c => c.Id == id);
+            if (church == null)
+                return NotFound("church not found");
+
+            if (dto.Code != null)
+            {
+                if (context.Churches.Any(c => c.Code == dto.Code && c.Id != id))
+                    return BadRequest("Code already exists please try another code for the church");
+                church.Code = dto.Code;
+            }
+
+            if (dto.churchName != null)
+            {
+                if (context.Churches.Any(c => c.churchName == dto.churchName && c.Id != id))
+                    return BadRequest("churchName already exists");
+                church.churchName = dto.churchName;
+            }
+
+            await context.SaveChangesAsync();
+            return Ok("Church updated successfully");
+        }
+        [Authorize]
+        [HttpDelete("delete/{id}")]
+        public async Task<IActionResult> deleteChurch(int id)
+        {
+            var church = await context.Churches
+                .Include(c => c.ChurchServices)
+                .FirstOrDefaultAsync(c => c.Id == id);
+            if (church == null)
+                return NotFound("church not found");
+
+            var linkedServiceIds = church.ChurchServices.Select(cs => cs.Id).ToList();
+            var hasStudents = await context.Students
+                .AnyAsync(s => linkedServiceIds.Contains(s.churchServiceID));
+            if (hasStudents)
+                return BadRequest("church has students, delete or move them first");
+
+            var hasUsers = await context.Users
+                .AnyAsync(u => linkedServiceIds.Contains(u.churchServiceID));
+            if (hasUsers)
+                return BadRequest("church has users, delete them first");
+
+            if (linkedServiceIds.Count > 0)
+                context.ChurchServices.RemoveRange(church.ChurchServices);
+
+            context.Churches.Remove(church);
+            await context.SaveChangesAsync();
+            return Ok("Deleted successfully");
+        }
     }
 }

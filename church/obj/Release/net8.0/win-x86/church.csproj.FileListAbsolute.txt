@@ -143,11 +143,6 @@ C:\Users\Kero\source\repos\church\church\obj\Release\net8.0\win-x86\church.MvcAp
 C:\Users\Kero\source\repos\church\church\obj\Release\net8.0\win-x86\church.MvcApplicationPartsAssemblyInfo.cache
 C:\Users\Kero\source\repos\church\church\obj\Release\net8.0\win-x86\staticwebassets.build.json
 C:\Users\Kero\source\repos\church\church\obj\Release\net8.0\win-x86\staticwebassets.development.json
-C:\Users\Kero\source\repos\church\church\obj\Release\net8.0\win-x86\staticwebassets\msbuild.church.Microsoft.AspNetCore.StaticWebAssets.props
-C:\Users\Kero\source\repos\church\church\obj\Release\net8.0\win-x86\staticwebassets\msbuild.build.church.props
-C:\Users\Kero\source\repos\church\church\obj\Release\net8.0\win-x86\staticwebassets\msbuild.buildMultiTargeting.church.props
-C:\Users\Kero\source\repos\church\church\obj\Release\net8.0\win-x86\staticwebassets\msbuild.buildTransitive.church.props
-C:\Users\Kero\source\repos\church\church\obj\Release\net8.0\win-x86\staticwebassets.pack.json
 C:\Users\Kero\source\repos\church\church\obj\Release\net8.0\win-x86\scopedcss\bundle\church.styles.css
 C:\Users\Kero\source\repos\church\church\obj\Release\net8.0\win-x86\church.csproj.Up2Date
 C:\Users\Kero\source\repos\church\church\obj\Release\net8.0\win-x86\church.dll
@@ -156,3 +151,11 @@ C:\Users\Kero\source\repos\church\church\obj\Release\net8.0\win-x86\church.pdb
 C:\Users\Kero\source\repos\church\church\obj\Release\net8.0\win-x86\church.genruntimeconfig.cache
 C:\Users\Kero\source\repos\church\church\obj\Release\net8.0\win-x86\ref\church.dll
 C:\Users\Kero\source\repos\church\church\obj\Release\net8.0\win-x86\church.sourcelink.json
+C:\Users\Kero\source\repos\church\church\bin\Release\net8.0\win-x86\church.staticwebassets.endpoints.json
+C:\Users\Kero\source\repos\church\church\obj\Release\net8.0\win-x86\rpswa.dswa.cache.json
+C:\Users\Kero\source\repos\church\church\obj\Release\net8.0\win-x86\rjimswa.dswa.cache.json
+C:\Users\Kero\source\repos\church\church\obj\Release\net8.0\win-x86\rjsmrazor.dswa.cache.json
+C:\Users\Kero\source\repos\church\church\obj\Release\net8.0\win-x86\rjsmcshtml.dswa.cache.json
+C:\Users\Kero\source\repos\church\church\obj\Release\net8.0\win-x86\staticwebassets.build.json.cache
+C:\Users\Kero\source\repos\church\church\obj\Release\net8.0\win-x86\staticwebassets.build.endpoints.json
+C:\Users\Kero\source\repos\church\church\obj\Release\net8.0\win-x86\staticwebassets.upToDateCheck.txt

@@ -110,5 +110,16 @@ namespace church.Controllers
             await context.SaveChangesAsync();
             return Ok("student restored successfully");
         }
+        [HttpDelete]
+        public async Task <IActionResult> Delete(int id) 
+        { 
+            var student= await context.DeletedStudents.FirstOrDefaultAsync(s=>s.Id==id);
+            if (student == null) 
+                return NotFound("Student not found");
+            context.DeletedStudents.Remove(student);
+            await context.SaveChangesAsync();
+            return Ok("Deleted successfully from Deleted List");
+
+        }
     }
 }

@@ -26,6 +26,8 @@ namespace church.Models
         public string? details { get; set; }
         public int? roleId { get; set; }
         public DateTime? CreatedAt { get; set; }
+        public string? CreatedBy { get; set; }
+        public string? UpdatedBy { get;set; }
 
         [ForeignKey("ChurchServices")]
         public int churchServiceID {  get; set; }
