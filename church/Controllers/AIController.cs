@@ -739,6 +739,63 @@ namespace church.Controllers
             }
 
             // =====================================================
+            // DETERMINISTIC ROUTING FOR COMMON ARABIC REQUESTS
+            //
+            // Do not send obvious attendance/subscription requests to
+            // the model first.  The model is useful for ambiguous
+            // requests, but the backend already knows how to resolve
+            // the common intents and periods exactly.
+            // =====================================================
+
+            if (session.SelectedPerson == null &&
+                TryBuildDeterministicGroupAction(
+                    message,
+                    grades,
+                    egyptNow,
+                    out var directGroupAction))
+            {
+                if (!directGroupAction.GradeId.HasValue)
+                {
+                    return AskForGrade(
+                        directGroupAction,
+                        session,
+                        grades,
+                        conversationId
+                    );
+                }
+
+                return await ExecuteGroupAction(
+                    directGroupAction,
+                    session,
+                    grades,
+                    authorization,
+                    conversationId
+                );
+            }
+
+            if (session.SelectedPerson != null &&
+                !HasExplicitGroupScope(message, grades))
+            {
+                var directPersonAction =
+                    InferPersonActionFromMessage(
+                        message,
+                        egyptNow,
+                        session
+                    );
+
+                if (directPersonAction != null)
+                {
+                    return await ExecutePersonAction(
+                        directPersonAction,
+                        session,
+                        grades,
+                        authorization,
+                        conversationId
+                    );
+                }
+            }
+
+            // =====================================================
             // PREPARE AI TOOLS
             // =====================================================
 
@@ -1765,6 +1822,19 @@ namespace church.Controllers
             if (action.Kind ==
                 "subscriptions")
             {
+                // The legacy person endpoint returns paid rows only.
+                // For the normal status view (all/unpaid), use the
+                // month endpoint so missing payments are represented
+                // correctly instead of being reported as zero.
+                if (!HasPeriod(action) &&
+                    action.PaymentStatus != "paid")
+                {
+                    SetCurrentMonth(
+                        action,
+                        GetEgyptNow()
+                    );
+                }
+
                 // No period -> use person's direct API.
                 if (!HasPeriod(action))
                 {
@@ -2228,21 +2298,7 @@ namespace church.Controllers
                         "period_required",
 
                     answer =
-                        "حدد بداية الفترة المطلوبة. مثال: من 1/1/2026 لحد دلوقتي.",
-
-                    ui = new
-                    {
-                        type =
-                            "quick_replies",
-
-                        options = new[]
-                        {
-                            "الشهر ده",
-                            "الشهر اللي فات",
-                            "آخر 3 شهور",
-                            "من 1/1/2026 لحد دلوقتي"
-                        }
-                    }
+                        "حدد بداية ونهاية الفترة المطلوبة، مثال: من 1/1/2026 لحد دلوقتي."
                 });
             }
 
@@ -2625,23 +2681,6 @@ namespace church.Controllers
 
             TouchSession(session);
 
-            var options =
-                grades
-                    .Select(
-                        x => new
-                        {
-                            action =
-                                "select_grade",
-
-                            label =
-                                x.Name,
-
-                            selectedGradeId =
-                                x.Id
-                        }
-                    )
-                    .ToList();
-
             return Ok(new
             {
                 conversationId,
@@ -2650,15 +2689,16 @@ namespace church.Controllers
                     "grade_required",
 
                 answer =
-                    "حدد المرحلة التي تريد البحث فيها:",
+                    "اكتب اسم المرحلة المطلوبة علشان أجيب النتيجة بدقة.",
 
-                ui = new
-                {
-                    type =
-                        "grade_choice_buttons",
-
-                    options
-                },
+                availableGrades =
+                    grades.Select(
+                        x => new
+                        {
+                            id = x.Id,
+                            name = x.Name
+                        }
+                    ),
 
                 pending = new
                 {
@@ -2677,6 +2717,9 @@ namespace church.Controllers
 
                     allTime =
                         action.AllTime,
+
+                    includeAudit =
+                        action.IncludeAudit,
 
                     paymentStatus =
                         action.PaymentStatus
@@ -2701,22 +2744,7 @@ namespace church.Controllers
                     "period_required",
 
                 answer =
-                    "حدد الفترة المطلوبة.",
-
-                ui = new
-                {
-                    type =
-                        "quick_replies",
-
-                    options = new[]
-                    {
-                        "الشهر ده",
-                        "الشهر اللي فات",
-                        "آخر 30 يوم",
-                        "آخر 3 شهور",
-                        "من 1/1/2026 لحد دلوقتي"
-                    }
-                },
+                    "اكتب الفترة المطلوبة، مثل: الشهر ده أو الشهر اللي فات أو من 1/1/2026 لحد دلوقتي.",
 
                 pending = new
                 {
@@ -2980,12 +3008,9 @@ namespace church.Controllers
             );
 
             action.PaymentStatus =
-                NormalizePaymentStatus(
-                    paymentStatus
-                    ??
-                    DetectPaymentStatus(
-                        message
-                    )
+                ResolvePaymentStatus(
+                    paymentStatus,
+                    message
                 );
 
             ApplyToolDates(
@@ -3075,12 +3100,9 @@ namespace church.Controllers
             );
 
             action.PaymentStatus =
-                NormalizePaymentStatus(
-                    paymentStatus
-                    ??
-                    DetectPaymentStatus(
-                        message
-                    )
+                ResolvePaymentStatus(
+                    paymentStatus,
+                    message
                 );
 
             ApplyToolDates(
@@ -3105,12 +3127,262 @@ namespace church.Controllers
                     allTime;
             }
 
+            if (!HasPeriod(action) &&
+                action.Kind is
+                    "attendance" or
+                    "absence" or
+                    "subscriptions" or
+                    "visitations")
+            {
+                SetCurrentMonth(
+                    action,
+                    now
+                );
+            }
+
             return action;
         }
 
         // =========================================================
         // BACKEND INTENT SAFETY NET
         // =========================================================
+
+        private static bool TryBuildDeterministicGroupAction(
+            string message,
+            List<GradeResult> grades,
+            DateTime now,
+            out GroupAction action)
+        {
+            action = new GroupAction();
+
+            if (string.IsNullOrWhiteSpace(message))
+            {
+                return false;
+            }
+
+            var normalized = NormalizeArabic(message);
+
+            var isAbsence = ContainsAny(
+                normalized,
+                "غياب",
+                "غيابات",
+                "غابوا",
+                "غايبين",
+                "متغيبين",
+                "مش بيحضروا",
+                "مبيحضروش"
+            );
+
+            var isAttendance = ContainsAny(
+                normalized,
+                "حضور",
+                "حاضرين",
+                "بيحضروا",
+                "حضروا"
+            );
+
+            var isSubscriptions = ContainsAny(
+                normalized,
+                "اشتراك",
+                "اشتراكات",
+                "الاشتراك",
+                "الاشتراكات",
+                "مدفوع",
+                "مدفوعين",
+                "غير مدفوع",
+                "مدفعوش"
+            );
+
+            var isVisitations = ContainsAny(
+                normalized,
+                "زياره",
+                "زيارة",
+                "زيارات"
+            );
+
+            if (!isAbsence &&
+                !isAttendance &&
+                !isSubscriptions &&
+                !isVisitations)
+            {
+                return false;
+            }
+
+            var hasGrade =
+                TryResolveGradeFromMessage(
+                    message,
+                    grades,
+                    out var gradeId
+                );
+
+            var mentionsGrade = ContainsAny(
+                normalized,
+                "مرحله",
+                "المرحله",
+                "صف",
+                "ابتدائي",
+                "ابتدايي",
+                "اعدادي",
+                "اعداديه",
+                "ثانوي",
+                "ثانويه",
+                "جامعه",
+                "خريجين"
+            );
+
+            var mentionsGroup = ContainsAny(
+                normalized,
+                "طلاب",
+                "الطلاب",
+                "الناس",
+                "المجموعه",
+                "المجموعة",
+                "الجروب",
+                "الكل",
+                "اللي مدفعوش",
+                "اللي دفعوا",
+                "اللي غابوا",
+                "اللي حضروا"
+            );
+
+            // A request containing a person's name should continue to
+            // the person resolver.  Only route a request without a
+            // grade when it is clearly a bare group request.
+            var isBareGroupRequest =
+                IsBareGroupDataRequest(normalized);
+
+            if (!hasGrade && !mentionsGrade && !mentionsGroup &&
+                !isBareGroupRequest)
+            {
+                return false;
+            }
+
+            action.Kind = isAbsence
+                ? "absence"
+                : isAttendance
+                    ? "attendance"
+                    : isSubscriptions
+                        ? "subscriptions"
+                        : "visitations";
+
+            action.GradeId = hasGrade ? gradeId : null;
+            action.PaymentStatus = DetectPaymentStatus(message);
+            action.IncludeAudit = ContainsAuditIntent(normalized);
+
+            if (TryResolveDateRangeFromMessage(
+                    message,
+                    now,
+                    out var fromDate,
+                    out var toDate,
+                    out var allTime))
+            {
+                action.FromDate = fromDate;
+                action.ToDate = toDate;
+                action.AllTime = allTime;
+            }
+            else
+            {
+                // A group query without a period means the current
+                // month.  This keeps the response useful and avoids
+                // an unnecessary period quick-reply step.
+                SetCurrentMonth(action, now);
+            }
+
+            return true;
+        }
+
+        private static bool IsBareGroupDataRequest(string normalized)
+        {
+            var value = normalized;
+
+            foreach (var word in new[]
+            {
+                "هات", "اعرض", "جيب", "عايز", "عاوزه", "عاوز", "ممكن",
+                "بيانات", "كل", "ال", "الشهر", "ده", "دا", "الحالي",
+                "الحاليه", "الحالية", "اللي", "من", "في", "ف"
+            })
+            {
+                value = Regex.Replace(
+                    value,
+                    $@"(?<!\S){Regex.Escape(word)}(?!\S)",
+                    " "
+                );
+            }
+
+            value = Regex.Replace(value, @"\s+", " ").Trim();
+
+            return ContainsAny(
+                value,
+                "غياب",
+                "غيابات",
+                "حضور",
+                "اشتراك",
+                "اشتراكات",
+                "الاشتراك",
+                "الاشتراكات",
+                "زياره",
+                "زيارات",
+                "مدفوع",
+                "مدفوعين",
+                "غير مدفوع",
+                "مدفعوش"
+            );
+        }
+
+        private static bool HasExplicitGroupScope(
+            string message,
+            List<GradeResult> grades)
+        {
+            var normalized = NormalizeArabic(message);
+
+            return TryResolveGradeFromMessage(
+                       message,
+                       grades,
+                       out _
+                   )
+                   ||
+                   ContainsAny(
+                       normalized,
+                       "مرحله",
+                       "المرحله",
+                       "صف",
+                       "ابتدائي",
+                       "ابتدايي",
+                       "اعدادي",
+                       "ثانوي",
+                       "جامعه",
+                       "خريجين",
+                       "طلاب",
+                       "الطلاب",
+                       "الناس",
+                       "المجموعه",
+                       "المجموعة",
+                       "الجروب",
+                       "الكل",
+                       "اللي مدفعوش",
+                       "اللي دفعوا",
+                       "اللي غابوا",
+                       "اللي حضروا"
+                   );
+        }
+
+        private static void SetCurrentMonth(
+            GroupAction action,
+            DateTime now)
+        {
+            action.AllTime = false;
+            action.FromDate = new DateTime(now.Year, now.Month, 1);
+            action.ToDate = now.Date;
+        }
+
+        private static void SetCurrentMonth(
+            PersonAction action,
+            DateTime now)
+        {
+            action.AllTime = false;
+            action.FromDate = new DateTime(now.Year, now.Month, 1);
+            action.ToDate = now.Date;
+        }
 
         private static PersonAction?
             InferPersonActionFromMessage(
@@ -5340,7 +5612,7 @@ namespace church.Controllers
             for (var i = 0; i < display.Count; i++)
             {
                 builder.AppendLine(
-                    $"{i + 1}. {display[i].Person.Name} — {display[i].Records.Count}"
+                    $"• {display[i].Person.Name} — عدد المرات: {display[i].Records.Count}"
                 );
             }
 
@@ -5498,6 +5770,18 @@ namespace church.Controllers
                 {
                     builder.AppendLine(
                         $"مدفوع: {paid} | غير مدفوع: {unpaid}"
+                    );
+                }
+                else if (action.PaymentStatus == "paid")
+                {
+                    builder.AppendLine(
+                        $"المعروض: المدفوع فقط — العدد: {period.Records.Count}"
+                    );
+                }
+                else
+                {
+                    builder.AppendLine(
+                        $"المعروض: غير المدفوع فقط — العدد: {period.Records.Count}"
                     );
                 }
 
@@ -7041,46 +7325,10 @@ namespace church.Controllers
                         "quick_reply",
 
                     label =
-                        "غياب الشهر اللي فات",
-
-                    message =
-                        "هات غيابه الشهر اللي فات"
-                },
-
-                new
-                {
-                    action =
-                        "quick_reply",
-
-                    label =
-                        "الحضور",
-
-                    message =
-                        "هات حضوره"
-                },
-
-                new
-                {
-                    action =
-                        "quick_reply",
-
-                    label =
                         "الاشتراكات",
 
                     message =
                         "هات اشتراكاته"
-                },
-
-                new
-                {
-                    action =
-                        "quick_reply",
-
-                    label =
-                        "الزيارات",
-
-                    message =
-                        "هات زياراته الشهر اللي فات"
                 }
             };
         }
@@ -7468,7 +7716,7 @@ namespace church.Controllers
             for (var i = 0; i < grades.Count; i++)
             {
                 builder.AppendLine(
-                    $"{i + 1}. {grades[i].Name}"
+                    $"• {grades[i].Name}"
                 );
             }
 
@@ -7496,7 +7744,7 @@ namespace church.Controllers
             for (var i = 0; i < display.Count; i++)
             {
                 builder.AppendLine(
-                    $"{i + 1}. {display[i].Name}"
+                    $"• {display[i].Name}"
                 );
             }
 
@@ -7602,22 +7850,86 @@ namespace church.Controllers
 
             var normalized =
                 NormalizeArabic(
-                    message
+                    ConvertArabicDigits(message)
                 );
 
-            foreach (var grade in grades)
+            var exactMatches =
+                grades
+                    .Where(
+                        grade =>
+                            NormalizeArabic(
+                                ConvertArabicDigits(grade.Name)
+                            ) == normalized
+                    )
+                    .ToList();
+
+            if (exactMatches.Count == 1)
             {
-                var gradeName =
-                    NormalizeArabic(
-                        grade.Name
-                    );
+                gradeId = exactMatches[0].Id;
+                return true;
+            }
 
-                if (normalized.Contains(
-                    gradeName))
+            // Match a complete grade name inside the sentence, but
+            // never choose when more than one current grade matches.
+            var nameMatches =
+                grades
+                    .Where(
+                        grade =>
+                        {
+                            var gradeName = NormalizeArabic(
+                                ConvertArabicDigits(grade.Name)
+                            );
+
+                            return gradeName.Length > 1 &&
+                                normalized.Contains(
+                                    gradeName,
+                                    StringComparison.Ordinal
+                                );
+                        }
+                    )
+                    .ToList();
+
+            if (nameMatches.Count == 1)
+            {
+                gradeId = nameMatches[0].Id;
+                return true;
+            }
+
+            // Support natural names such as "اعدادي" when the
+            // database contains one matching grade named "مرحلة اعدادي".
+            var aliases = new[]
+            {
+                "ابتدائي",
+                "اعدادي",
+                "ثانوي",
+                "جامعه",
+                "خريجين"
+            };
+
+            foreach (var alias in aliases)
+            {
+                var normalizedAlias = NormalizeArabic(alias);
+
+                if (!normalized.Contains(normalizedAlias))
                 {
-                    gradeId =
-                        grade.Id;
+                    continue;
+                }
 
+                var aliasMatches =
+                    grades
+                        .Where(
+                            grade => NormalizeArabic(
+                                ConvertArabicDigits(grade.Name)
+                            ).Contains(
+                                normalizedAlias,
+                                StringComparison.Ordinal
+                            )
+                        )
+                        .ToList();
+
+                if (aliasMatches.Count == 1)
+                {
+                    gradeId = aliasMatches[0].Id;
                     return true;
                 }
             }
@@ -7668,11 +7980,15 @@ namespace church.Controllers
                     "مدفعش",
                     "مادفعش",
                     "ما دفعش",
+                    "ما دفعوش",
+                    "مدفعوش",
                     "مش دافع",
+                    "مش مدفوع",
                     "غير مدفوع",
                     "غير مدفوعين",
                     "لم يدفع",
-                    "مدفعوش"))
+                    "لم يدفعوا",
+                    "اللي مدفعوش"))
             {
                 return "unpaid";
             }
@@ -7689,6 +8005,26 @@ namespace church.Controllers
             }
 
             return "all";
+        }
+
+        private static string ResolvePaymentStatus(
+            string? toolValue,
+            string message)
+        {
+            var detected = DetectPaymentStatus(message);
+            var normalizedToolValue = NormalizePaymentStatus(toolValue);
+
+            // Some model responses send payment_status=all even when
+            // the Arabic message explicitly asks for paid/unpaid
+            // records.  Natural-language intent has priority over the
+            // model default, while an explicit paid/unpaid value is
+            // still respected.
+            if (detected != "all" && normalizedToolValue == "all")
+            {
+                return detected;
+            }
+
+            return normalizedToolValue;
         }
 
         private static string NormalizePaymentStatus(

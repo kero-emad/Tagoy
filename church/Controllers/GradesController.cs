@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 
 namespace church.Controllers
 {
@@ -20,7 +21,28 @@ namespace church.Controllers
         [HttpGet("show")]
         public async Task<IActionResult> getAllGrades()
         {
-            var grades = await context.Grades
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            Users? user = null;
+
+            if (int.TryParse(userId, out var userIdValue))
+            {
+                user = await context.Users.FirstOrDefaultAsync(
+                    x => x.Id == userIdValue);
+            }
+
+            var query = context.Grades.AsQueryable();
+
+            // An empty allowedGrades list means all grades.  When it
+            // contains values, expose only grades the current user can
+            // actually read; this also keeps AI grade suggestions safe
+            // and relevant.
+            if (user?.allowedGrades is { Count: > 0 } allowedGrades)
+            {
+                query = query.Where(
+                    grade => allowedGrades.Contains(grade.Id));
+            }
+
+            var grades = await query
                 .OrderBy(g => g.Name)
                 .Select(g => new ShowAllGradesDTO
                 {
