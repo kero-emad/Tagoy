@@ -170,4 +170,4 @@ C:\Users\Kero\source\repos\church\church\obj\Release\net8.0\rjsmrazor.dswa.cache
 C:\Users\Kero\source\repos\church\church\obj\Release\net8.0\rjsmcshtml.dswa.cache.json
 C:\Users\Kero\source\repos\church\church\obj\Release\net8.0\staticwebassets.build.json.cache
 C:\Users\Kero\source\repos\church\church\obj\Release\net8.0\staticwebassets.build.endpoints.json
-C:\Users\Kero\source\repos\church\church\obj\Release\net8.0\staticwebassets.upToDateCheck.txt
+C:\Users\Kero\source\repos\church\church\obj\Release\net8.0\swae.build.ex.cache

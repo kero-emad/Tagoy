@@ -1,11 +1,1 @@
-{
-  "Version": 1,
-  "Hash": "w+8U/Xw30uiFwVUItcMlw32mefxZXwIFgh+OPbfYBoc=",
-  "Source": "church",
-  "BasePath": "_content/church",
-  "Mode": "Default",
-  "ManifestType": "Publish",
-  "ReferencedProjectsConfiguration": [],
-  "DiscoveryPatterns": [],
-  "Assets": []
-}
+{"Version":1,"Hash":"jWzzNQYsKJG6JGc+bySd+YdphyKwEz/7y3p9/XUh0ZM=","Source":"church","BasePath":"/","Mode":"Root","ManifestType":"Publish","ReferencedProjectsConfiguration":[],"DiscoveryPatterns":[],"Assets":[],"Endpoints":[]}
