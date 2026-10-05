@@ -5,6 +5,7 @@ using church.Models;
 using church.Models.AI;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Filters;
 using System.Collections.Concurrent;
 using System.Globalization;
 using System.Net.Http.Headers;
@@ -159,6 +160,8 @@ namespace church.Controllers
         private class ChatSessionState
         {
             public List<string> RecentUserMessages { get; set; } = new();
+
+            public bool AwaitingPersonName { get; set; }
 
             public PersonResult? SelectedPerson { get; set; }
 
@@ -358,6 +361,7 @@ namespace church.Controllers
         // =========================================================
 
         [HttpPost("chat")]
+        [TypeFilter(typeof(AIChatExceptionFilter))]
         public async Task<IActionResult> Chat(
             [FromBody] ChatRequest request)
         {
@@ -365,10 +369,10 @@ namespace church.Controllers
                 string.IsNullOrWhiteSpace(request.SelectedQr) &&
                 !request.SelectedGradeId.HasValue)
             {
-                return BadRequest(new
+                return Ok(new
                 {
-                    message =
-                        "Message, SelectedQr or SelectedGradeId is required"
+                    type = "message",
+                    answer = "اكتب سؤالك أو اختار شخص أو مرحلة علشان أبدأ أساعدك."
                 });
             }
 
@@ -381,6 +385,8 @@ namespace church.Controllers
                 GetOrCreateConversationId(
                     request.ConversationId
                 );
+
+            HttpContext.Items["AIConversationId"] = conversationId;
 
             var sessionKey =
                 BuildSessionKey(
@@ -416,19 +422,42 @@ namespace church.Controllers
 
             if (!gradesResult.Success)
             {
-                return StatusCode(
-                    gradesResult.StatusCode,
-                    new
-                    {
-                        conversationId,
-                        message =
-                            gradesResult.ErrorMessage
-                    }
-                );
+                return Ok(new
+                {
+                    conversationId,
+                    type = "message",
+                    answer = "قائمة المراحل مش متاحة دلوقتي. جرّب تاني بعد شوية، أو اكتب اسم الشخص مباشرة لو طلبك عن فرد معين."
+                });
             }
 
             var grades =
                 gradesResult.Grades;
+
+            if (IsOtherPersonChoice(message))
+            {
+                session.AwaitingPersonName = true;
+                session.PendingCandidates.Clear();
+                TouchSession(session);
+
+                return Ok(new
+                {
+                    conversationId,
+                    type = "person_name_required",
+                    answer = "تمام، اكتب اسم الشخص الآخر كما هو مسجل، وهعرض بياناته بنفس نوع الطلب السابق."
+                });
+            }
+
+            if (session.AwaitingPersonName && !string.IsNullOrWhiteSpace(message))
+            {
+                return await ResolveOtherPersonName(
+                    message,
+                    session,
+                    grades,
+                    authorization,
+                    egyptNow,
+                    conversationId
+                );
+            }
 
             // =====================================================
             // GRADE BUTTON CLICK
@@ -445,12 +474,7 @@ namespace church.Controllers
 
                 if (grade == null)
                 {
-                    return BadRequest(new
-                    {
-                        conversationId,
-                        message =
-                            "المرحلة المختارة غير موجودة حالياً."
-                    });
+                    return ChatMessage(conversationId, "المرحلة المختارة مش موجودة حاليًا. اختار مرحلة من القائمة المتاحة.");
                 }
 
                 session.LastGradeId =
@@ -533,13 +557,7 @@ namespace church.Controllers
 
                 if (selected == null)
                 {
-                    return BadRequest(new
-                    {
-                        conversationId,
-
-                        message =
-                            "لم أتمكن من العثور على الشخص المختار أو ليس لديك صلاحية لعرضه."
-                    });
+                    return ChatMessage(conversationId, "الشخص المختار مش متاح في المراحل المسموح لك بيها. ابحث بالاسم أو اختار شخصًا تاني.");
                 }
 
                 SetSelectedPerson(
@@ -980,14 +998,12 @@ namespace church.Controllers
 
             if (!aiResult.Success)
             {
-                return StatusCode(
-                    aiResult.StatusCode ?? 503,
-                    new
-                    {
-                        conversationId,
-                        message = "خدمة المساعدة غير متاحة حالياً. حاول مرة أخرى بعد قليل."
-                    }
-                );
+                return Ok(new
+                {
+                    conversationId,
+                    type = "message",
+                    answer = "المساعد غير متاح للحظات. أعد إرسال طلبك بعد قليل، أو اكتبه مباشرة باسم الشخص أو المرحلة ونوع البيانات المطلوبة."
+                });
             }
 
             if (aiResult.ToolCall == null)
@@ -1080,12 +1096,7 @@ namespace church.Controllers
                         "church_id",
                         out var churchId))
                 {
-                    return BadRequest(new
-                    {
-                        conversationId,
-                        message =
-                            "تعذر تحديد الكنيسة."
-                    });
+                    return ChatMessage(conversationId, "اختار الكنيسة المطلوبة علشان أجيب خدماتها.");
                 }
 
                 var api =
@@ -1135,12 +1146,7 @@ namespace church.Controllers
 
                 if (grade == null)
                 {
-                    return BadRequest(new
-                    {
-                        conversationId,
-                        message =
-                            "المرحلة غير موجودة."
-                    });
+                    return ChatMessage(conversationId, "المرحلة دي مش موجودة ضمن المراحل المتاحة لحسابك.");
                 }
 
                 var peopleResult =
@@ -1207,12 +1213,7 @@ namespace church.Controllers
                         "name",
                         out var name))
                 {
-                    return BadRequest(new
-                    {
-                        conversationId,
-                        message =
-                            "تعذر تحديد الاسم."
-                    });
+                    return ChatMessage(conversationId, "اكتب اسم الشخص اللي بتدور عليه.");
                 }
 
                 var action =
@@ -1250,12 +1251,7 @@ namespace church.Controllers
                         "name",
                         out var name))
                 {
-                    return BadRequest(new
-                    {
-                        conversationId,
-                        message =
-                            "تعذر تحديد الاسم."
-                    });
+                    return ChatMessage(conversationId, "اكتب اسم الشخص اللي بتدور عليه.");
                 }
 
                 var action =
@@ -1397,24 +1393,14 @@ namespace church.Controllers
                         "role_id",
                         out var roleId))
                 {
-                    return BadRequest(new
-                    {
-                        conversationId,
-                        message =
-                            "تعذر تحديد دور الخادم."
-                    });
+                    return ChatMessage(conversationId, "حدد دور الخادم المطلوب علشان أجيب الأفراد المرتبطين به.");
                 }
 
                 if (!ServantsRolesStatic.TryGetValue(
                         roleId,
                         out var roleName))
                 {
-                    return BadRequest(new
-                    {
-                        conversationId,
-                        message =
-                            "دور الخادم غير موجود."
-                    });
+                    return ChatMessage(conversationId, "الدور ده مش موجود ضمن أدوار الخدام المتاحة.");
                 }
 
                 var servantsGrade =
@@ -1424,12 +1410,7 @@ namespace church.Controllers
 
                 if (servantsGrade == null)
                 {
-                    return BadRequest(new
-                    {
-                        conversationId,
-                        message =
-                            "مجموعة الخدام غير موجودة."
-                    });
+                    return ChatMessage(conversationId, "مرحلة الخدام مش مسجلة ضمن المراحل المتاحة لحسابك.");
                 }
 
                 var peopleResult =
@@ -1522,12 +1503,7 @@ namespace church.Controllers
                         "mode",
                         out var mode))
                 {
-                    return BadRequest(new
-                    {
-                        conversationId,
-                        message =
-                            "تعذر فهم شروط البحث."
-                    });
+                    return ChatMessage(conversationId, "وضح مجال البحث والقيمة اللي بتدور عليها.");
                 }
 
                 TryGetString(
@@ -1541,12 +1517,7 @@ namespace church.Controllers
                 if (!AllowedSearchFields.Contains(
                     field!))
                 {
-                    return BadRequest(new
-                    {
-                        conversationId,
-                        message =
-                            "الحقل غير مسموح بالبحث فيه."
-                    });
+                    return ChatMessage(conversationId, "البحث عن نوع البيانات ده مش متاح. جرّب الاسم أو رقم الهاتف أو العنوان.");
                 }
 
                 var grade =
@@ -1558,12 +1529,7 @@ namespace church.Controllers
 
                 if (grade == null)
                 {
-                    return BadRequest(new
-                    {
-                        conversationId,
-                        message =
-                            "المرحلة غير موجودة."
-                    });
+                    return ChatMessage(conversationId, "المرحلة دي مش موجودة ضمن المراحل المتاحة لحسابك.");
                 }
 
                 var peopleResult =
@@ -1610,13 +1576,7 @@ namespace church.Controllers
                 });
             }
 
-            return BadRequest(new
-            {
-                conversationId,
-
-                message =
-                    $"الأداة المطلوبة غير مدعومة: {functionName}"
-            });
+            return ChatMessage(conversationId, "مش فاهم نوع البيانات المطلوب. اكتب اسم الشخص أو المرحلة ونوع البيانات، زي: غياب مينا ماجد الشهر ده.");
         }
 
         // =========================================================
@@ -1651,13 +1611,7 @@ namespace church.Controllers
             if (string.IsNullOrWhiteSpace(
                 person.Qr))
             {
-                return BadRequest(new
-                {
-                    conversationId,
-
-                    message =
-                        "لا يوجد QR صالح لهذا الشخص."
-                });
+                return ChatMessage(conversationId, "بيانات تعريف الشخص مش متاحة حاليًا، لذلك مش هعرض سجلًا ممكن يخص شخصًا آخر.");
             }
 
             // =====================================================
@@ -1967,13 +1921,7 @@ namespace church.Controllers
 
                 if (!personWithGrade.Grade.HasValue)
                 {
-                    return BadRequest(new
-                    {
-                        conversationId,
-
-                        message =
-                            "تعذر تحديد مرحلة الشخص لقراءة الاشتراكات خلال الفترة."
-                    });
+                    return ChatMessage(conversationId, "اسم المرحلة المرتبطة بالشخص مش متاح، لذلك مش هعرض اشتراكاته بأرقام غير مؤكدة.");
                 }
 
                 session.SelectedPerson =
@@ -2111,13 +2059,7 @@ namespace church.Controllers
 
                 if (!personWithGrade.Grade.HasValue)
                 {
-                    return BadRequest(new
-                    {
-                        conversationId,
-
-                        message =
-                            "تعذر تحديد مرحلة الشخص لقراءة الزيارات."
-                    });
+                    return ChatMessage(conversationId, "اسم المرحلة المرتبطة بالشخص مش متاح، لذلك مش هعرض زيارات غير مؤكدة.");
                 }
 
                 session.SelectedPerson =
@@ -2189,13 +2131,7 @@ namespace church.Controllers
                 });
             }
 
-            return BadRequest(new
-            {
-                conversationId,
-
-                message =
-                    "نوع الطلب غير معروف."
-            });
+            return ChatMessage(conversationId, "مش واضح نوع البيانات المطلوبة للشخص. اكتب مثلًا: حضوره الشهر ده أو اشتراكاته الشهر اللي فات.");
         }
 
         // =========================================================
@@ -2229,13 +2165,7 @@ namespace church.Controllers
 
             if (grade == null)
             {
-                return BadRequest(new
-                {
-                    conversationId,
-
-                    message =
-                        "المرحلة غير موجودة حالياً."
-                });
+                return ChatMessage(conversationId, "المرحلة دي مش موجودة ضمن المراحل المتاحة لحسابك.");
             }
 
             session.LastGradeId =
@@ -2613,13 +2543,7 @@ namespace church.Controllers
                 });
             }
 
-            return BadRequest(new
-            {
-                conversationId,
-
-                message =
-                    "نوع طلب المجموعة غير معروف."
-            });
+            return ChatMessage(conversationId, "مش واضح نوع البيانات المطلوبة للمجموعة. قل مثلًا: غياب إعدادي أو اشتراكات مرحلة إعدادي.");
         }
 
         // =========================================================
@@ -2780,6 +2704,98 @@ namespace church.Controllers
         // =========================================================
         // PERSON RESOLUTION
         // =========================================================
+
+        private static bool IsOtherPersonChoice(string message)
+        {
+            var normalized = NormalizeArabic(message);
+            return ContainsAny(
+                normalized,
+                "شخص تاني",
+                "شخص اخر",
+                "حد تاني",
+                "حد اخر",
+                "شخص مختلف"
+            );
+        }
+
+        private async Task<IActionResult> ResolveOtherPersonName(
+            string message,
+            ChatSessionState session,
+            List<GradeResult> grades,
+            string authorization,
+            DateTime now,
+            string conversationId)
+        {
+            var action = session.LastPersonAction == null
+                ? null
+                : ClonePersonAction(session.LastPersonAction);
+            var personName = message.Trim();
+
+            if (TryExtractPersonRequest(
+                    message,
+                    now,
+                    session,
+                    out var extractedName,
+                    out var explicitAction))
+            {
+                personName = extractedName;
+                action = explicitAction;
+            }
+
+            var matches = await FindPeopleByName(
+                personName,
+                grades,
+                authorization
+            );
+
+            if (matches.Count == 0)
+            {
+                session.AwaitingPersonName = true;
+                TouchSession(session);
+                return Ok(new
+                {
+                    conversationId,
+                    type = "person_not_found",
+                    answer = $"مش لاقي شخص مطابق للاسم «{personName}» في المراحل المتاحة لك. راجع كتابة الاسم أو اكتبه زي ما هو مسجل، وأنا هكمل نفس الطلب."
+                });
+            }
+
+            session.AwaitingPersonName = false;
+
+            if (matches.Count > 1)
+            {
+                return PersonAmbiguousResponse(
+                    personName,
+                    matches,
+                    grades,
+                    action ?? new PersonAction { Kind = "summary" },
+                    session,
+                    conversationId
+                );
+            }
+
+            SetSelectedPerson(session, matches[0]);
+
+            if (action == null)
+            {
+                return Ok(new
+                {
+                    conversationId,
+                    type = "person_selected",
+                    answer = $"تمام، لقيت {matches[0].Name}. اختار نوع البيانات اللي محتاجها أو اكتب طلبك مباشرة.",
+                    selectedPerson = ToBasicPerson(matches[0]),
+                    actions = SelectedPersonActions()
+                });
+            }
+
+            return await ExecutePersonAction(
+                action,
+                session,
+                grades,
+                authorization,
+                conversationId
+            );
+        }
 
         private async Task<IActionResult>
             ResolvePersonAndExecute(
@@ -4568,10 +4584,11 @@ namespace church.Controllers
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (!int.TryParse(userId, out var userIdValue))
             {
-                return Unauthorized(new
+                return Ok(new
                 {
                     conversationId,
-                    message = "تعذر تحديد حساب المستخدم لحساب الاشتراكات."
+                    type = "message",
+                    answer = "جلسة تسجيل الدخول مش واضحة. سجّل دخولك من جديد علشان أقدر أطلع تقرير الاشتراكات."
                 });
             }
 
@@ -4582,11 +4599,11 @@ namespace church.Controllers
 
             if (string.IsNullOrWhiteSpace(serviceCode))
             {
-                return StatusCode(503, new
+                return Ok(new
                 {
                     conversationId,
                     type = "subscription_settings_unavailable",
-                    message = "مش قادر أحدد إعدادات أسعار الاشتراك الخاصة بالخدمة، لذلك مش هعرض إجماليًا ماليًا غير مؤكد."
+                    answer = "إعدادات أسعار الاشتراك للخدمة مش متاحة، لذلك مش هعرض إجماليًا ماليًا غير مؤكد. راجع إعدادات الخدمة أو جرّب تاني بعد شوية."
                 });
             }
 
@@ -4599,11 +4616,11 @@ namespace church.Controllers
             }
             catch
             {
-                return StatusCode(503, new
+                return Ok(new
                 {
                     conversationId,
                     type = "subscription_settings_unavailable",
-                    message = "تعذر تحميل إعدادات أسعار الاشتراك حاليًا، لذلك لم أقدر أحسب إجمالي المبالغ المطلوبة بدقة."
+                    answer = "إعدادات أسعار الاشتراك مش متاحة حاليًا، لذلك ما حسبتش إجماليًا ممكن يكون غير دقيق. جرّب تاني بعد شوية."
                 });
             }
 
@@ -4618,11 +4635,11 @@ namespace church.Controllers
                 calculationStart.Month < 1 ||
                 calculationStart.Month > 12)
             {
-                return StatusCode(503, new
+                return Ok(new
                 {
                     conversationId,
                     type = "subscription_settings_unavailable",
-                    message = $"إعدادات بداية حساب الاشتراك غير موجودة لمرحلة {grade.Name}، لذلك مش هعرض إجماليًا تقديريًا على إنه مبلغ مؤكد."
+                    answer = $"إعدادات بداية حساب الاشتراك غير موجودة لمرحلة {grade.Name}، لذلك مش هعرض إجماليًا تقديريًا على إنه مبلغ مؤكد."
                 });
             }
 
@@ -4693,11 +4710,11 @@ namespace church.Controllers
                     });
                 }
 
-                return StatusCode(peopleResult.StatusCode, new
+                return Ok(new
                 {
                     conversationId,
                     type = "subscription_data_unavailable",
-                    message = peopleResult.ErrorMessage
+                    answer = peopleResult.ErrorMessage ?? "بيانات أفراد المرحلة مش متاحة حاليًا. جرّب تاني بعد شوية."
                 });
             }
 
@@ -4722,15 +4739,12 @@ namespace church.Controllers
                 if (!api.Success ||
                     !TryParseArray(api.Raw, out var rows))
                 {
-                    return StatusCode(
-                        api.Success ? 502 : api.StatusCode,
-                        new
-                        {
-                            conversationId,
-                            type = "subscription_data_unavailable",
-                            message = "تعذر تحميل سجلات الاشتراكات كاملة؛ أوقفت التقرير حتى لا أعتبر البيانات الناقصة مبالغ غير مدفوعة."
-                        }
-                    );
+                    return Ok(new
+                    {
+                        conversationId,
+                        type = "subscription_data_unavailable",
+                        answer = "سجلات الاشتراك ما اتحملتش كاملة، فمش هعرض تقرير ممكن يحسب مبالغ غير مدفوعة بالغلط. جرّب تاني بعد شوية."
+                    });
                 }
 
                 foreach (var row in rows)
@@ -5274,7 +5288,7 @@ namespace church.Controllers
                         api.StatusCode,
 
                     ErrorMessage =
-                        "تعذر تحميل المراحل."
+                        "قائمة المراحل مش متاحة حاليًا."
                 };
             }
 
@@ -5350,7 +5364,7 @@ namespace church.Controllers
                         500,
 
                     ErrorMessage =
-                        "تعذر قراءة بيانات المراحل."
+                        "بيانات المراحل وصلت بصيغة غير متوقعة، جرّب تاني بعد شوية."
                 };
             }
         }
@@ -5377,7 +5391,7 @@ namespace church.Controllers
                         api.StatusCode,
 
                     ErrorMessage =
-                        "تعذر الوصول إلى بيانات الأفراد."
+                        "بيانات الأفراد في المرحلة دي مش متاحة حاليًا. جرّب تاني بعد شوية."
                 };
             }
 
@@ -5394,7 +5408,7 @@ namespace church.Controllers
                         500,
 
                     ErrorMessage =
-                        "تعذر قراءة بيانات الأفراد."
+                        "بيانات الأفراد وصلت بصيغة غير متوقعة، جرّب تاني بعد شوية."
                 };
             }
 
@@ -9302,6 +9316,18 @@ namespace church.Controllers
         // FORMATTING
         // =========================================================
 
+        private IActionResult ChatMessage(
+            string conversationId,
+            string answer)
+        {
+            return Ok(new
+            {
+                conversationId,
+                type = "message",
+                answer
+            });
+        }
+
         private static string SafeText(
             string? value)
         {
@@ -9443,19 +9469,13 @@ namespace church.Controllers
         {
             if (!api.Success)
             {
-                return StatusCode(
-                    api.StatusCode,
-                    new
-                    {
-                        conversationId,
-
-                        message =
-                            "حدث خطأ أثناء جلب البيانات.",
-
-                        details =
-                            api.Raw
-                    }
-                );
+                return Ok(new
+                {
+                    conversationId,
+                    type = "message",
+                    answer = "البيانات المطلوبة مش متاحة حاليًا. جرّب تاني بعد شوية.",
+                    retryable = true
+                });
             }
 
             object parsed;
@@ -9503,16 +9523,13 @@ namespace church.Controllers
             PeopleResult result,
             string conversationId)
         {
-            return StatusCode(
-                result.StatusCode,
-                new
-                {
-                    conversationId,
-
-                    message =
-                        result.ErrorMessage
-                }
-            );
+            return Ok(new
+            {
+                conversationId,
+                type = "message",
+                answer = result.ErrorMessage ?? "بيانات الأفراد مش متاحة حاليًا. جرّب تاني بعد شوية.",
+                retryable = true
+            });
         }
 
         // =========================================================
@@ -9562,6 +9579,35 @@ namespace church.Controllers
 
             public List<PersonResult> People { get; set; } =
                 new();
+        }
+    }
+
+    public sealed class AIChatExceptionFilter : IAsyncExceptionFilter
+    {
+        private readonly ILogger<AIChatExceptionFilter> _logger;
+
+        public AIChatExceptionFilter(ILogger<AIChatExceptionFilter> logger)
+        {
+            _logger = logger;
+        }
+
+        public Task OnExceptionAsync(ExceptionContext context)
+        {
+            var conversationId = context.HttpContext.Items["AIConversationId"] as string;
+            _logger.LogError(
+                context.Exception,
+                "Unhandled chat request error for conversation {ConversationId}",
+                conversationId
+            );
+
+            context.Result = new OkObjectResult(new
+            {
+                conversationId,
+                type = "message",
+                answer = "حصلت مشكلة مؤقتة أثناء تجهيز البيانات. ابعتلي الطلب مرة تانية، ولو بتسأل عن شخص اكتب اسمه ونوع البيانات المطلوبة."
+            });
+            context.ExceptionHandled = true;
+            return Task.CompletedTask;
         }
     }
 }
