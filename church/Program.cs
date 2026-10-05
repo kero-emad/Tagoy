@@ -168,7 +168,7 @@ namespace church
             // AI + FIRESTORE SERVICES
             // =====================================================
 
-            builder.Services.AddAiFirestoreServices();
+            builder.Services.AddAiFirestoreServices(builder.Configuration);
 
             // =====================================================
             // BUILD APP

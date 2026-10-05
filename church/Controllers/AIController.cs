@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using church.AIServices;
+using church.AIServices.AI;
 using church.Models;
 using church.Models.AI;
 using Microsoft.EntityFrameworkCore;
@@ -24,17 +25,20 @@ namespace church.Controllers
         private readonly context _db;
         private readonly IFirestoreSettingsService _settingsService;
         private readonly ISubscriptionCalculationService _subscriptionCalculator;
+        private readonly IAIOrchestrator _aiOrchestrator;
 
         public AIController(
             IHttpClientFactory httpClientFactory,
             context db,
             IFirestoreSettingsService settingsService,
-            ISubscriptionCalculationService subscriptionCalculator)
+            ISubscriptionCalculationService subscriptionCalculator,
+            IAIOrchestrator aiOrchestrator)
         {
             _httpClientFactory = httpClientFactory;
             _db = db;
             _settingsService = settingsService;
             _subscriptionCalculator = subscriptionCalculator;
+            _aiOrchestrator = aiOrchestrator;
         }
 
         private const int AttendanceAbsentStatus = 0;
@@ -45,6 +49,8 @@ namespace church.Controllers
 
         private static readonly TimeSpan SessionLifetime =
             TimeSpan.FromHours(2);
+
+        private const int MaxRememberedUserMessages = 8;
 
         // =========================================================
         // STATIC SERVANT ROLES
@@ -152,6 +158,8 @@ namespace church.Controllers
 
         private class ChatSessionState
         {
+            public List<string> RecentUserMessages { get; set; } = new();
+
             public PersonResult? SelectedPerson { get; set; }
 
             public List<PersonResult> PendingCandidates { get; set; } =
@@ -364,20 +372,6 @@ namespace church.Controllers
                 });
             }
 
-            var groqApiKey =
-                Environment.GetEnvironmentVariable(
-                    "GROQ_API_KEY"
-                );
-
-            if (string.IsNullOrWhiteSpace(groqApiKey))
-            {
-                return StatusCode(500, new
-                {
-                    message =
-                        "GROQ_API_KEY is not configured"
-                });
-            }
-
             CleanupOldSessions();
 
             var authorization =
@@ -404,6 +398,8 @@ namespace church.Controllers
 
             var message =
                 request.Message?.Trim() ?? "";
+
+            RememberUserMessage(session, message);
 
             var egyptNow =
                 GetEgyptNow().Date;
@@ -834,6 +830,32 @@ namespace church.Controllers
             {
                 if (!directGroupAction.GradeId.HasValue)
                 {
+                    if (ContainsAny(
+                            NormalizeArabic(message),
+                            "خدام",
+                            "الخدام",
+                            "خدامين"))
+                    {
+                        return AskForRelevantGrade(
+                            directGroupAction,
+                            message,
+                            session,
+                            grades,
+                            conversationId
+                        );
+                    }
+
+                    if (HasGradeCategoryMention(message))
+                    {
+                        return AskForRelevantGrade(
+                            directGroupAction,
+                            message,
+                            session,
+                            grades,
+                            conversationId
+                        );
+                    }
+
                     return AskForGrade(
                         directGroupAction,
                         session,
@@ -916,7 +938,8 @@ namespace church.Controllers
                     session,
                     gradesText,
                     rolesText,
-                    egyptNow
+                    egyptNow,
+                    BuildConversationContext(session, grades)
                 );
 
             var messages =
@@ -940,84 +963,38 @@ namespace church.Controllers
                     message
                 );
 
-            var groqResponse =
-                await SendToGroq(
-                    groqApiKey,
-                    messages,
-                    tools,
-                    requireTool
-                        ? "required"
-                        : "auto"
-                );
+            var providerTools = tools
+                .Select(tool => JsonSerializer.SerializeToElement(tool))
+                .ToArray();
 
-            if (!groqResponse.Success &&
-                requireTool)
-            {
-                groqResponse =
-                    await SendToGroq(
-                        groqApiKey,
-                        messages,
-                        tools,
-                        "auto"
-                    );
-            }
+            var aiResult = await _aiOrchestrator.ExecuteAsync(
+                new AIProviderRequest
+                {
+                    SystemPrompt = systemPrompt,
+                    UserMessage = message,
+                    Tools = providerTools,
+                    RequireTool = requireTool,
+                    Temperature = 0
+                },
+                HttpContext.RequestAborted);
 
-            if (!groqResponse.Success)
+            if (!aiResult.Success)
             {
                 return StatusCode(
-                    groqResponse.StatusCode,
+                    aiResult.StatusCode ?? 503,
                     new
                     {
                         conversationId,
-
-                        message =
-                            "Groq request failed",
-
-                        details =
-                            groqResponse.Raw
+                        message = "خدمة المساعدة غير متاحة حالياً. حاول مرة أخرى بعد قليل."
                     }
                 );
             }
 
-            using var groqDocument =
-                JsonDocument.Parse(
-                    groqResponse.Raw
-                );
-
-            var aiMessage =
-                groqDocument
-                    .RootElement
-                    .GetProperty("choices")[0]
-                    .GetProperty("message");
-
-            if (!aiMessage.TryGetProperty(
-                    "tool_calls",
-                    out var toolCalls)
-                ||
-                toolCalls.ValueKind !=
-                    JsonValueKind.Array
-                ||
-                toolCalls.GetArrayLength() == 0)
+            if (aiResult.ToolCall == null)
             {
-                string? answer =
-                    null;
-
-                if (aiMessage.TryGetProperty(
-                        "content",
-                        out var contentElement)
-                    &&
-                    contentElement.ValueKind ==
-                        JsonValueKind.String)
-                {
-                    answer =
-                        contentElement.GetString();
-                }
-
+                var answer = aiResult.Content;
                 if (string.IsNullOrWhiteSpace(answer))
-                {
-                    answer =
-                        "كيف أقدر أساعدك؟";
-                }
+                    answer = "كيف أقدر أساعدك؟";
 
                 return Ok(new
                 {
@@ -1030,22 +1007,9 @@ namespace church.Controllers
                 });
             }
 
-            var toolCall =
-                toolCalls[0];
-
-            var function =
-                toolCall
-                    .GetProperty("function");
-
-            var functionName =
-                function
-                    .GetProperty("name")
-                    .GetString();
-
-            TryGetArguments(
-                function,
-                out var args
-            );
+            var functionName = aiResult.ToolCall.Name;
+            using var argumentsDocument = JsonDocument.Parse(aiResult.ToolCall.ArgumentsJson);
+            var args = argumentsDocument.RootElement.Clone();
 
             // =====================================================
             // SIMPLE READ TOOLS
@@ -2662,6 +2626,71 @@ namespace church.Controllers
         // ASK USER FOR GRADE
         // =========================================================
 
+        private IActionResult AskForRelevantGrade(
+            GroupAction action,
+            string message,
+            ChatSessionState session,
+            List<GradeResult> grades,
+            string conversationId)
+        {
+            var category = GetGradeCategory(message);
+            var matchingGrades = category == null
+                ? new List<GradeResult>()
+                : grades
+                    .Where(grade => NormalizeArabic(grade.Name).Contains(category))
+                    .OrderBy(grade => grade.Name, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+
+            session.PendingGroupAction = CloneGroupAction(action);
+            TouchSession(session);
+
+            var answer = matchingGrades.Count > 0
+                ? $"حدد المرحلة المقصودة بكتابة اسمها: {string.Join("، ", matchingGrades.Select(grade => grade.Name).Distinct(StringComparer.OrdinalIgnoreCase))}."
+                : category == null
+                    ? "مش قادر أحدد المرحلة من رسالتك. اكتب اسمها كما هو ظاهر في النظام."
+                    : $"ملقتش مرحلة متاحة تطابق «{category}». اكتب اسم المرحلة كما هي مسجلة في النظام.";
+
+            return Ok(new
+            {
+                conversationId,
+                type = "grade_required",
+                answer,
+                pending = new
+                {
+                    kind = action.Kind,
+                    fromDate = action.FromDate?.ToString("yyyy-MM-dd"),
+                    toDate = action.ToDate?.ToString("yyyy-MM-dd"),
+                    allTime = action.AllTime,
+                    includeAudit = action.IncludeAudit,
+                    paymentStatus = action.PaymentStatus
+                }
+            });
+        }
+
+        private static bool HasGradeCategoryMention(string message)
+        {
+            return GetGradeCategory(message) != null;
+        }
+
+        private static string? GetGradeCategory(string message)
+        {
+            var normalized = NormalizeArabic(message);
+            var categories = new (string Name, string[] Aliases)[]
+            {
+                ("خدام", new[] { "خدام", "خادم", "خدامين" }),
+                ("اعدادي", new[] { "اعدادي", "اعداديه" }),
+                ("ابتدائي", new[] { "ابتدائي", "ابتدايي" }),
+                ("ثانوي", new[] { "ثانوي", "ثانويه" }),
+                ("جامعه", new[] { "جامعه" }),
+                ("خريجين", new[] { "خريجين" })
+            };
+
+            return categories
+                .FirstOrDefault(category => category.Aliases.Any(alias =>
+                    normalized.Contains(NormalizeArabic(alias), StringComparison.Ordinal)))
+                .Name;
+        }
+
         private IActionResult AskForGrade(
             GroupAction action,
             ChatSessionState session,
@@ -3172,7 +3201,8 @@ namespace church.Controllers
                 "حضور",
                 "حاضرين",
                 "بيحضروا",
-                "حضروا"
+                "حضروا",
+                "حضر"
             );
 
             var isSubscriptions = ContainsAny(
@@ -3239,7 +3269,9 @@ namespace church.Controllers
                 "اللي مدفعوش",
                 "اللي دفعوا",
                 "اللي غابوا",
-                "اللي حضروا"
+                "اللي حضروا",
+                "مين حضر",
+                "مين غاب"
             );
 
             // A request containing a person's name should continue to
@@ -3252,6 +3284,20 @@ namespace church.Controllers
                 !isBareGroupRequest)
             {
                 return false;
+            }
+
+            if (!hasGrade &&
+                GetGradeCategory(message) is { } gradeCategory)
+            {
+                var categoryMatches = grades
+                    .Where(grade => NormalizeArabic(grade.Name).Contains(gradeCategory))
+                    .ToList();
+
+                if (categoryMatches.Count == 1)
+                {
+                    gradeId = categoryMatches[0].Id;
+                    hasGrade = true;
+                }
             }
 
             action.Kind = isAbsence
@@ -3302,7 +3348,10 @@ namespace church.Controllers
                 "وريني", "بيانات", "كل", "الشهر", "شهر", "ده", "دا", "دي",
                 "الحالي", "الحاليه", "اللي", "من", "في", "ف", "ل", "غياب",
                 "الغياب", "غيابه", "غيابات", "غابوا", "غايبين", "حضور", "حاضرين",
-                "بيحضروا", "حضروا", "اشتراك", "الاشتراك", "اشتراكات", "الاشتراكات",
+                "بيحضروا", "حضروا", "حضر", "مين", "يوم", "ال", "اعدادي", "اعداديه",
+                "ابتدائي", "ثانوي", "ثانويه", "جامعه", "خريجين", "خدام", "خادم", "خدامين",
+                "الاحد", "احد", "الاتنين", "الاثنين", "الثلاثاء", "الاربعاء", "الخميس", "الجمعه", "السبت",
+                "اشتراك", "الاشتراك", "اشتراكات", "الاشتراكات",
                 "مدفوع", "مدفوعين", "غير", "مدفعوش", "زياره", "الزياره", "زيارات",
                 "فات", "الماضي", "الماضيه", "اخر", "دلوقتي", "الان", "حتى", "لحد"
             };
@@ -3405,10 +3454,25 @@ namespace church.Controllers
                        "المجموعة",
                        "الجروب",
                        "الكل",
+                       "خدام",
+                       "الخدام",
+                       "خدامين",
                        "اللي مدفعوش",
                        "اللي دفعوا",
                        "اللي غابوا",
-                       "اللي حضروا"
+                       "اللي حضروا",
+                       "مين حضر",
+                       "مين غاب",
+                       "مرحله",
+                       "صف",
+                       "ابتدائي",
+                       "ابتدايي",
+                       "اعدادي",
+                       "اعداديه",
+                       "ثانوي",
+                       "ثانويه",
+                       "جامعه",
+                       "خريجين"
                    );
         }
 
@@ -3660,6 +3724,49 @@ namespace church.Controllers
                 NormalizeArabic(
                     converted
                 );
+
+            var previousWeekdays = new (DayOfWeek Day, string[] Names)[]
+            {
+                (DayOfWeek.Sunday, new[] { "الاحد", "احد" }),
+                (DayOfWeek.Monday, new[] { "الاثنين", "الاتنين", "اثنين", "اتنين" }),
+                (DayOfWeek.Tuesday, new[] { "الثلاثاء", "ثلاثاء" }),
+                (DayOfWeek.Wednesday, new[] { "الاربعاء", "اربعاء" }),
+                (DayOfWeek.Thursday, new[] { "الخميس", "خميس" }),
+                (DayOfWeek.Friday, new[] { "الجمعه", "جمعه" }),
+                (DayOfWeek.Saturday, new[] { "السبت", "سبت" })
+            };
+
+            foreach (var (day, names) in previousWeekdays)
+            {
+                var mentionsPreviousDay = names.Any(name =>
+                    ContainsAny(
+                        normalized,
+                        $"{name} اللي فات",
+                        $"{name} ال فات",
+                        $"{name} الماضي",
+                        $"{name} الفات",
+                        $"{name} السابق",
+                        $"{name} اللي عدى",
+                        $"يوم {name} اللي فات",
+                        $"يوم {name} ال فات",
+                        $"يوم {name} الماضي"));
+
+                if (!mentionsPreviousDay)
+                {
+                    continue;
+                }
+
+                var daysBack = ((int)now.DayOfWeek - (int)day + 7) % 7;
+                if (daysBack == 0)
+                {
+                    daysBack = 7;
+                }
+
+                var previousDate = now.AddDays(-daysBack);
+                fromDate = previousDate;
+                toDate = previousDate;
+                return true;
+            }
 
             // =====================================================
             // ALL TIME
@@ -6960,7 +7067,7 @@ namespace church.Controllers
                             "get_group_subscriptions",
 
                         description =
-                            "Get subscription/payment information for a grade during a period. If grade is missing, omit grade_id.",
+                            "Get the subscription report for every person in the explicitly named grade through the requested end month. Return the backend report including each person's paid months, unpaid months, and total due. If the grade is not explicit or cannot be matched uniquely, omit grade_id; never choose a different grade.",
 
                         parameters =
                             GroupPeriodSchema(
@@ -7417,11 +7524,80 @@ namespace church.Controllers
         // SYSTEM PROMPT
         // =========================================================
 
+        private static void RememberUserMessage(
+            ChatSessionState session,
+            string message)
+        {
+            if (string.IsNullOrWhiteSpace(message))
+            {
+                return;
+            }
+
+            lock (session)
+            {
+                session.RecentUserMessages.Add(message);
+
+                if (session.RecentUserMessages.Count > MaxRememberedUserMessages)
+                {
+                    session.RecentUserMessages.RemoveRange(
+                        0,
+                        session.RecentUserMessages.Count - MaxRememberedUserMessages
+                    );
+                }
+            }
+        }
+
+        private static string BuildConversationContext(
+            ChatSessionState session,
+            List<GradeResult> grades)
+        {
+            List<string> previousMessages;
+
+            lock (session)
+            {
+                previousMessages = session.RecentUserMessages
+                    .Take(Math.Max(0, session.RecentUserMessages.Count - 1))
+                    .TakeLast(6)
+                    .ToList();
+            }
+
+            var previousText = previousMessages.Count == 0
+                ? "لا توجد رسائل سابقة."
+                : string.Join("\n", previousMessages.Select((text, index) => $"{index + 1}. {text}"));
+
+            var lastGroup = session.LastGroupAction;
+            var lastGroupText = "لا يوجد طلب مجموعة سابق مكتمل.";
+
+            if (lastGroup != null)
+            {
+                var gradeName = lastGroup.GradeId.HasValue
+                    ? grades.FirstOrDefault(grade => grade.Id == lastGroup.GradeId.Value)?.Name
+                    : null;
+                var period = lastGroup.AllTime
+                    ? "كل المدة"
+                    : $"{lastGroup.FromDate:yyyy-MM-dd} إلى {lastGroup.ToDate:yyyy-MM-dd}";
+
+                lastGroupText =
+                    $"النوع={lastGroup.Kind}، المرحلة={gradeName ?? "غير محددة"}، الفترة={period}، حالة الدفع={lastGroup.PaymentStatus}.";
+            }
+
+            return $"""
+                الرسائل السابقة للمستخدم (الأحدث في الأسفل):
+                {previousText}
+
+                آخر طلب مجموعة نُفذ بنجاح:
+                {lastGroupText}
+
+                اعتبر هذه المعلومات سياقاً للمساعدة في فهم المتابعات فقط. الطلب الحالي الصريح وأي فترة أو مرحلة يذكرها المستخدم الآن لهما الأولوية دائماً.
+                """;
+        }
+
         private static string BuildSystemPrompt(
             ChatSessionState session,
             string gradesText,
             string rolesText,
-            DateTime now)
+            DateTime now,
+            string conversationContext)
         {
             var selectedPerson =
                 session.SelectedPerson == null
@@ -7437,6 +7613,12 @@ namespace church.Controllers
 
                 دورك الأساسي:
                 فهم رسالة المستخدم واختيار Tool المناسبة فقط.
+
+                افهم اللهجة المصرية والأخطاء الإملائية الشائعة، ولا تتعامل مع كل كلمة منفردة بمعزل عن بقية الرسالة أو سياق المحادثة.
+                طابق اسم المرحلة مع القائمة الحالية بأقرب تطابق واضح وفريد؛ إذا كتب المستخدم "مرحله خدام" وكانت القائمة تحتوي "مرحلة خدام" فهذه هي المرحلة المقصودة، ولا تسأل عن مرحلة أخرى.
+                كلمة "الخدام" قد تعني مجموعة/مرحلة خدام وليست اسماً لشخص، إلا إذا ظهر اسم شخص كامل بوضوح.
+                إذا كانت المتابعة مثل "والغياب؟" أو "هات الاشتراكات كمان"، استخدم آخر مرحلة وفترة من طلب المجموعة السابق ما لم يذكر المستخدم مرحلة أو فترة جديدة.
+                لا تعرض خيارات أو تطلب من المستخدم إعادة معلومة واضحة بالفعل في رسالته أو سياق المحادثة.
 
                 البيانات الحقيقية يتم قراءتها بواسطة Backend.
                 لا تخترع أي بيانات.
@@ -7460,6 +7642,12 @@ namespace church.Controllers
 
                 الشخص المحدد حالياً:
                 {selectedPerson}
+
+                ========================================
+                CONVERSATION CONTEXT
+                ========================================
+
+                {conversationContext}
 
                 لو المستخدم يقول:
                 هو
@@ -8995,7 +9183,8 @@ namespace church.Controllers
                     .Replace('ٱ', 'ا')
                     .Replace('ى', 'ي')
                     .Replace('ؤ', 'و')
-                    .Replace('ئ', 'ي');
+                    .Replace('ئ', 'ي')
+                    .Replace('ة', 'ه');
 
             result =
                 Regex.Replace(
@@ -9327,77 +9516,6 @@ namespace church.Controllers
         }
 
         // =========================================================
-        // GROQ
-        // =========================================================
-
-        private async Task<GroqResult>
-            SendToGroq(
-                string apiKey,
-                List<object> messages,
-                object[] tools,
-                string toolChoice)
-        {
-            var client =
-                _httpClientFactory
-                    .CreateClient();
-
-            client.DefaultRequestHeaders.Authorization =
-                new AuthenticationHeaderValue(
-                    "Bearer",
-                    apiKey
-                );
-
-            var payload = new
-            {
-                model =
-                    "openai/gpt-oss-20b",
-
-                include_reasoning =
-                    false,
-
-                temperature =
-                    0,
-
-                messages,
-
-                tools,
-
-                tool_choice =
-                    toolChoice
-            };
-
-            var json =
-                JsonSerializer.Serialize(
-                    payload
-                );
-
-            var content =
-                new StringContent(
-                    json,
-                    Encoding.UTF8,
-                    "application/json"
-                );
-
-            var response =
-                await client.PostAsync(
-                    "https://api.groq.com/openai/v1/chat/completions",
-                    content
-                );
-
-            return new GroqResult
-            {
-                Success =
-                    response.IsSuccessStatusCode,
-
-                StatusCode =
-                    (int)response.StatusCode,
-
-                Raw =
-                    await response.Content
-                        .ReadAsStringAsync()
-            };
-        }
-
         // =========================================================
         // MISC
         // =========================================================
@@ -9412,15 +9530,6 @@ namespace church.Controllers
         // =========================================================
         // INTERNAL RESULT CLASSES
         // =========================================================
-
-        private class GroqResult
-        {
-            public bool Success { get; set; }
-
-            public int StatusCode { get; set; }
-
-            public string Raw { get; set; } = "";
-        }
 
         private class ExactApiResult
         {
