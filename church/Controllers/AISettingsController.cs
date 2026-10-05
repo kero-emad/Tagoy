@@ -1,6 +1,9 @@
+using church.Models;
 using church.AIServices;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 namespace church.Controllers
 {
@@ -11,17 +14,22 @@ namespace church.Controllers
     {
         private readonly IFirestoreSettingsService _settingsService;
         private readonly ICurrentServiceCodeResolver _serviceCodeResolver;
+        private readonly context _db;
 
-        public AISettingsController(IFirestoreSettingsService settingsService, ICurrentServiceCodeResolver serviceCodeResolver)
+        public AISettingsController(
+            IFirestoreSettingsService settingsService,
+            ICurrentServiceCodeResolver serviceCodeResolver,
+            context db)
         {
             _settingsService = settingsService;
             _serviceCodeResolver = serviceCodeResolver;
+            _db = db;
         }
 
         [HttpPost("refresh")]
         public async Task<IActionResult> Refresh(CancellationToken cancellationToken)
         {
-            var serviceCode = _serviceCodeResolver.Resolve(User);
+            var serviceCode = await ResolveCurrentServiceCodeAsync();
             if (string.IsNullOrWhiteSpace(serviceCode))
                 return BadRequest(new { success = false, message = "Unable to resolve the current service." });
 
@@ -73,9 +81,9 @@ namespace church.Controllers
         }
 
         [HttpGet("status")]
-        public IActionResult Status()
+        public async Task<IActionResult> Status()
         {
-            var serviceCode = _serviceCodeResolver.Resolve(User);
+            var serviceCode = await ResolveCurrentServiceCodeAsync();
             if (string.IsNullOrWhiteSpace(serviceCode))
                 return BadRequest(new { success = false, message = "Unable to resolve the current service." });
 
@@ -86,6 +94,26 @@ namespace church.Controllers
                 subscription = status.Subscription,
                 attendance = status.Attendance
             });
+        }
+
+        private async Task<string?> ResolveCurrentServiceCodeAsync()
+        {
+            var serviceCode = _serviceCodeResolver.Resolve(User);
+            if (!string.IsNullOrWhiteSpace(serviceCode))
+            {
+                return serviceCode;
+            }
+
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (!int.TryParse(userId, out var userIdValue))
+            {
+                return null;
+            }
+
+            return await _db.Users
+                .Where(user => user.Id == userIdValue)
+                .Select(user => user.ChurchServices.Services.Code)
+                .FirstOrDefaultAsync();
         }
     }
 }

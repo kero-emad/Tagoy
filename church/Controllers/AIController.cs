@@ -1,4 +1,8 @@
 using Microsoft.AspNetCore.Authorization;
+using church.AIServices;
+using church.Models;
+using church.Models.AI;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Mvc;
 using System.Collections.Concurrent;
 using System.Globalization;
@@ -17,10 +21,20 @@ namespace church.Controllers
     public class AIController : ControllerBase
     {
         private readonly IHttpClientFactory _httpClientFactory;
+        private readonly context _db;
+        private readonly IFirestoreSettingsService _settingsService;
+        private readonly ISubscriptionCalculationService _subscriptionCalculator;
 
-        public AIController(IHttpClientFactory httpClientFactory)
+        public AIController(
+            IHttpClientFactory httpClientFactory,
+            context db,
+            IFirestoreSettingsService settingsService,
+            ISubscriptionCalculationService subscriptionCalculator)
         {
             _httpClientFactory = httpClientFactory;
+            _db = db;
+            _settingsService = settingsService;
+            _subscriptionCalculator = subscriptionCalculator;
         }
 
         private const int AttendanceAbsentStatus = 0;
@@ -314,6 +328,21 @@ namespace church.Controllers
 
             public List<SubscriptionRecord> Records { get; set; } =
                 new();
+        }
+
+        private class GroupSubscriptionMemberReport
+        {
+            public PersonResult Person { get; set; } = new();
+
+            public List<string> PaidMonths { get; set; } = new();
+
+            public List<string> UnpaidMonths { get; set; } = new();
+
+            public decimal? TotalDue { get; set; }
+
+            public List<string> MissingPriceMonths { get; set; } = new();
+
+            public bool RequiresEmploymentStatus { get; set; }
         }
 
         // =========================================================
@@ -746,6 +775,55 @@ namespace church.Controllers
             // requests, but the backend already knows how to resolve
             // the common intents and periods exactly.
             // =====================================================
+
+            if (session.SelectedPerson == null &&
+                TryExtractPersonRequest(
+                    message,
+                    egyptNow,
+                    session,
+                    out var personQuery,
+                    out var personAction))
+            {
+                var personMatches = await FindPeopleByName(
+                    personQuery,
+                    grades,
+                    authorization
+                );
+
+                if (personMatches.Count == 1)
+                {
+                    SetSelectedPerson(session, personMatches[0]);
+                    return await ExecutePersonAction(
+                        personAction,
+                        session,
+                        grades,
+                        authorization,
+                        conversationId
+                    );
+                }
+
+                if (personMatches.Count > 1)
+                {
+                    return PersonAmbiguousResponse(
+                        personQuery,
+                        personMatches,
+                        grades,
+                        personAction,
+                        session,
+                        conversationId
+                    );
+                }
+
+                if (!HasExplicitGroupScope(message, grades))
+                {
+                    return Ok(new
+                    {
+                        conversationId,
+                        type = "person_not_found",
+                        answer = $"ملقتش شخص باسم «{personQuery}» في المراحل المسموح لك بها. لو تقصد مجموعة، اكتب اسم المرحلة أو قل مثلًا: طلاب المرحلة الإعدادية."
+                    });
+                }
+            }
 
             if (session.SelectedPerson == null &&
                 TryBuildDeterministicGroupAction(
@@ -2468,97 +2546,13 @@ namespace church.Controllers
                     );
                 }
 
-                var months =
-                    EnumerateMonths(
-                        action.FromDate!.Value,
-                        action.ToDate!.Value
-                    );
-
-                if (months.Count > 36)
-                {
-                    return RangeTooLarge(
-                        conversationId
-                    );
-                }
-
-                var periods =
-                    new List<SubscriptionMonthResult>();
-
-                foreach (var month in months)
-                {
-                    var records =
-                        await GetSubscriptionsForMonth(
-                            grade.Id,
-                            month.Month,
-                            month.Year,
-                            authorization
-                        );
-
-                    records =
-                        FilterSubscriptionsByPayment(
-                            records,
-                            action.PaymentStatus
-                        );
-
-                    periods.Add(
-                        new SubscriptionMonthResult
-                        {
-                            Month =
-                                month.Month,
-
-                            Year =
-                                month.Year,
-
-                            Records =
-                                records
-                        }
-                    );
-                }
-
-                session.LastGroupAction =
-                    CloneGroupAction(
-                        action
-                    );
-
-                session.PendingGroupAction =
-                    null;
-
-                TouchSession(session);
-
-                return Ok(new
-                {
-                    conversationId,
-
-                    type =
-                        "group_subscriptions",
-
-                    grade = new
-                    {
-                        id =
-                            grade.Id,
-
-                        name =
-                            grade.Name
-                    },
-
-                    period =
-                        ToPeriodObject(
-                            action
-                        ),
-
-                    paymentStatus =
-                        action.PaymentStatus,
-
-                    answer =
-                        BuildGroupSubscriptionsAnswer(
-                            grade,
-                            periods,
-                            action
-                        ),
-
-                    data =
-                        periods
-                });
+                return await ExecuteGroupSubscriptionBalanceReport(
+                    grade,
+                    action,
+                    session,
+                    authorization,
+                    conversationId
+                );
             }
 
             // =====================================================
@@ -3227,7 +3221,10 @@ namespace church.Controllers
                 "ثانوي",
                 "ثانويه",
                 "جامعه",
-                "خريجين"
+                "خريجين",
+                "خدام",
+                "خادم",
+                "خدامين"
             );
 
             var mentionsGroup = ContainsAny(
@@ -3293,40 +3290,98 @@ namespace church.Controllers
 
         private static bool IsBareGroupDataRequest(string normalized)
         {
-            var value = normalized;
+            var value = Regex.Replace(
+                normalized,
+                @"\d{1,4}[/-]\d{1,2}[/-]\d{1,4}|\d+",
+                " "
+            );
 
-            foreach (var word in new[]
+            var removableWords = new HashSet<string>(StringComparer.Ordinal)
             {
-                "هات", "اعرض", "جيب", "عايز", "عاوزه", "عاوز", "ممكن",
-                "بيانات", "كل", "ال", "الشهر", "ده", "دا", "الحالي",
-                "الحاليه", "الحالية", "اللي", "من", "في", "ف"
-            })
+                "هات", "اعرض", "جيب", "عايز", "عاوزه", "عاوز", "ممكن", "شوف",
+                "وريني", "بيانات", "كل", "الشهر", "شهر", "ده", "دا", "دي",
+                "الحالي", "الحاليه", "اللي", "من", "في", "ف", "ل", "غياب",
+                "الغياب", "غيابه", "غيابات", "غابوا", "غايبين", "حضور", "حاضرين",
+                "بيحضروا", "حضروا", "اشتراك", "الاشتراك", "اشتراكات", "الاشتراكات",
+                "مدفوع", "مدفوعين", "غير", "مدفعوش", "زياره", "الزياره", "زيارات",
+                "فات", "الماضي", "الماضيه", "اخر", "دلوقتي", "الان", "حتى", "لحد"
+            };
+
+            var remaining = value
+                .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                .Select(token => token.Trim('،', ',', '.', '؟', '?', ':', ';', 'ـ'))
+                .Where(token => token.Length > 0 && !removableWords.Contains(token));
+
+            return !remaining.Any();
+        }
+
+        private static bool TryExtractPersonRequest(
+            string message,
+            DateTime now,
+            ChatSessionState session,
+            out string personQuery,
+            out PersonAction action)
+        {
+            personQuery = "";
+            action = new PersonAction();
+
+            var inferred = InferPersonActionFromMessage(
+                message,
+                now,
+                session
+            );
+
+            if (inferred == null ||
+                inferred.Kind is not (
+                    "attendance" or "absence" or "subscriptions" or "visitations"))
             {
-                value = Regex.Replace(
-                    value,
-                    $@"(?<!\S){Regex.Escape(word)}(?!\S)",
-                    " "
-                );
+                return false;
             }
 
-            value = Regex.Replace(value, @"\s+", " ").Trim();
-
-            return ContainsAny(
-                value,
-                "غياب",
-                "غيابات",
-                "حضور",
-                "اشتراك",
-                "اشتراكات",
-                "الاشتراك",
-                "الاشتراكات",
-                "زياره",
-                "زيارات",
-                "مدفوع",
-                "مدفوعين",
-                "غير مدفوع",
-                "مدفعوش"
+            var residual = NormalizeArabic(
+                ConvertArabicDigits(message)
             );
+
+            residual = Regex.Replace(
+                residual,
+                @"\d{1,4}[/-]\d{1,2}[/-]\d{1,4}|\d+",
+                " "
+            );
+
+            residual = Regex.Replace(
+                residual,
+                @"(?<![\p{L}\p{N}])شهر\s+\d{1,2}(?![\p{L}\p{N}])",
+                " "
+            );
+
+            var removableWords = new HashSet<string>(StringComparer.Ordinal)
+            {
+                "هات", "اعرض", "جيب", "شوف", "وريني", "عايز", "عاوزه", "عاوز",
+                "ممكن", "لو", "سمحت", "بيانات", "تفاصيل", "الغياب", "غياب",
+                "غيابه", "غيابها", "غيابات", "غاب", "غايب", "حضور", "حضوره",
+                "اشتراك", "الاشتراك", "اشتراكات", "الاشتراكات", "اشتراكاته",
+                "زياره", "الزياره", "زيارات", "زياراته", "الشهر", "شهر", "ده",
+                "دا", "دي", "هذا", "الحالي", "الحاليه", "اللي", "فات", "فاته",
+                "الماضي", "الماضيه", "اخر", "من", "لحد", "حتى", "دلوقتي", "الان",
+                "مرحله", "المرحله", "صف", "الصف", "انهي", "اي", "ايه", "فانهي",
+                "هو", "هي", "ده", "دا", "معرفش", "مش", "المطلوب", "طب", "طيب",
+                "في", "ف", "ل", "كل", "افراد", "طلاب", "الطلاب", "الناس", "المجموعه"
+            };
+
+            var tokens = residual
+                .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                .Select(token => token.Trim('،', ',', '.', '؟', '?', ':', ';', 'ـ'))
+                .Where(token => token.Length > 0 && !removableWords.Contains(token))
+                .ToList();
+
+            if (tokens.Count == 0)
+            {
+                return false;
+            }
+
+            personQuery = string.Join(' ', tokens);
+            action = inferred;
+            return true;
         }
 
         private static bool HasExplicitGroupScope(
@@ -3343,15 +3398,6 @@ namespace church.Controllers
                    ||
                    ContainsAny(
                        normalized,
-                       "مرحله",
-                       "المرحله",
-                       "صف",
-                       "ابتدائي",
-                       "ابتدايي",
-                       "اعدادي",
-                       "ثانوي",
-                       "جامعه",
-                       "خريجين",
                        "طلاب",
                        "الطلاب",
                        "الناس",
@@ -3382,6 +3428,30 @@ namespace church.Controllers
             action.AllTime = false;
             action.FromDate = new DateTime(now.Year, now.Month, 1);
             action.ToDate = now.Date;
+        }
+
+        private static DateTime GetStudentCalculationStart(
+            PersonResult person,
+            DateTime configuredStart)
+        {
+            if (!DateTime.TryParse(
+                    person.CreatedAt,
+                    CultureInfo.InvariantCulture,
+                    DateTimeStyles.None,
+                    out var createdAt))
+            {
+                return configuredStart;
+            }
+
+            var studentStart = new DateTime(
+                createdAt.Year,
+                createdAt.Month,
+                1
+            );
+
+            return studentStart > configuredStart
+                ? studentStart
+                : configuredStart;
         }
 
         private static PersonAction?
@@ -4381,6 +4451,334 @@ namespace church.Controllers
         // SUBSCRIPTIONS
         // =========================================================
 
+        private async Task<IActionResult> ExecuteGroupSubscriptionBalanceReport(
+            GradeResult grade,
+            GroupAction action,
+            ChatSessionState session,
+            string authorization,
+            string conversationId)
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (!int.TryParse(userId, out var userIdValue))
+            {
+                return Unauthorized(new
+                {
+                    conversationId,
+                    message = "تعذر تحديد حساب المستخدم لحساب الاشتراكات."
+                });
+            }
+
+            var serviceCode = await _db.Users
+                .Where(user => user.Id == userIdValue)
+                .Select(user => user.ChurchServices.Services.Code)
+                .FirstOrDefaultAsync();
+
+            if (string.IsNullOrWhiteSpace(serviceCode))
+            {
+                return StatusCode(503, new
+                {
+                    conversationId,
+                    type = "subscription_settings_unavailable",
+                    message = "مش قادر أحدد إعدادات أسعار الاشتراك الخاصة بالخدمة، لذلك مش هعرض إجماليًا ماليًا غير مؤكد."
+                });
+            }
+
+            SubscriptionServiceSettingsDocument? settings;
+            try
+            {
+                settings = await _settingsService.GetSubscriptionSettingsAsync(
+                    serviceCode
+                );
+            }
+            catch
+            {
+                return StatusCode(503, new
+                {
+                    conversationId,
+                    type = "subscription_settings_unavailable",
+                    message = "تعذر تحميل إعدادات أسعار الاشتراك حاليًا، لذلك لم أقدر أحسب إجمالي المبالغ المطلوبة بدقة."
+                });
+            }
+
+            var gradeKey = grade.Id.ToString(CultureInfo.InvariantCulture);
+            if (settings?.Settings?.CalculationStarts == null ||
+                !settings.Settings.CalculationStarts.TryGetValue(
+                    gradeKey,
+                    out var calculationStart
+                ) ||
+                calculationStart.Year < 2000 ||
+                calculationStart.Year > 2100 ||
+                calculationStart.Month < 1 ||
+                calculationStart.Month > 12)
+            {
+                return StatusCode(503, new
+                {
+                    conversationId,
+                    type = "subscription_settings_unavailable",
+                    message = $"إعدادات بداية حساب الاشتراك غير موجودة لمرحلة {grade.Name}، لذلك مش هعرض إجماليًا تقديريًا على إنه مبلغ مؤكد."
+                });
+            }
+
+            var today = GetEgyptNow().Date;
+            var endMonth = new DateTime(
+                action.ToDate!.Value.Year,
+                action.ToDate.Value.Month,
+                1
+            );
+            var currentMonth = new DateTime(today.Year, today.Month, 1);
+            if (endMonth > currentMonth)
+            {
+                endMonth = currentMonth;
+            }
+
+            var configuredStart = new DateTime(
+                calculationStart.Year,
+                calculationStart.Month,
+                1
+            );
+
+            // A single requested month is a balance as of that month,
+            // so include all configured months up to it. Explicit
+            // multi-month ranges remain limited to the requested range.
+            var fromMonth = configuredStart;
+            if (action.FromDate.HasValue &&
+                action.ToDate.HasValue &&
+                (action.FromDate.Value.Year != action.ToDate.Value.Year ||
+                 action.FromDate.Value.Month != action.ToDate.Value.Month))
+            {
+                var requestedStart = new DateTime(
+                    action.FromDate.Value.Year,
+                    action.FromDate.Value.Month,
+                    1
+                );
+                if (requestedStart > fromMonth)
+                {
+                    fromMonth = requestedStart;
+                }
+            }
+
+            var months = endMonth < fromMonth
+                ? new List<DateTime>()
+                : EnumerateMonths(fromMonth, endMonth);
+
+            if (months.Count > 36)
+            {
+                return RangeTooLarge(conversationId);
+            }
+
+            var peopleResult = await GetPeopleByGrade(grade.Id, authorization);
+            if (!peopleResult.Success)
+            {
+                if (peopleResult.StatusCode == 404)
+                {
+                    session.LastGroupAction = CloneGroupAction(action);
+                    session.PendingGroupAction = null;
+                    TouchSession(session);
+
+                    return Ok(new
+                    {
+                        conversationId,
+                        type = "group_subscription_balance",
+                        grade = new { id = grade.Id, name = grade.Name },
+                        count = 0,
+                        answer = $"لا يوجد أفراد مسجلون في {grade.Name}.",
+                        data = Array.Empty<object>()
+                    });
+                }
+
+                return StatusCode(peopleResult.StatusCode, new
+                {
+                    conversationId,
+                    type = "subscription_data_unavailable",
+                    message = peopleResult.ErrorMessage
+                });
+            }
+
+            var roster = peopleResult.People
+                .Where(person => person.Id.HasValue)
+                .ToDictionary(person => person.Id!.Value);
+            var paymentsByStudent = new Dictionary<int, List<SubscriptionPaymentSnapshot>>();
+
+            foreach (var month in months)
+            {
+                var api = await PostExactLocal(
+                    "/api/Subscriptions/show",
+                    authorization,
+                    new
+                    {
+                        grade = grade.Id,
+                        month = month.Month,
+                        year = month.Year
+                    }
+                );
+
+                if (!api.Success ||
+                    !TryParseArray(api.Raw, out var rows))
+                {
+                    return StatusCode(
+                        api.Success ? 502 : api.StatusCode,
+                        new
+                        {
+                            conversationId,
+                            type = "subscription_data_unavailable",
+                            message = "تعذر تحميل سجلات الاشتراكات كاملة؛ أوقفت التقرير حتى لا أعتبر البيانات الناقصة مبالغ غير مدفوعة."
+                        }
+                    );
+                }
+
+                foreach (var row in rows)
+                {
+                    var record = ParseSubscriptionRecord(row);
+                    if (!record.StudentId.HasValue)
+                    {
+                        continue;
+                    }
+
+                    var studentId = record.StudentId.Value;
+                    if (!roster.ContainsKey(studentId))
+                    {
+                        continue;
+                    }
+
+                    if (!paymentsByStudent.TryGetValue(studentId, out var snapshots))
+                    {
+                        snapshots = new List<SubscriptionPaymentSnapshot>();
+                        paymentsByStudent[studentId] = snapshots;
+                    }
+
+                    snapshots.Add(new SubscriptionPaymentSnapshot
+                    {
+                        Year = month.Year,
+                        Month = month.Month,
+                        IsPaid = record.IsPaid == true,
+                        SubscriptionId = record.SubscriptionId,
+                        UserName = record.UserName,
+                        LastUpdated = record.LastUpdated
+                    });
+                }
+            }
+
+            var reports = new List<GroupSubscriptionMemberReport>();
+
+            foreach (var (studentId, person) in roster)
+            {
+                paymentsByStudent.TryGetValue(studentId, out var snapshots);
+                snapshots ??= new List<SubscriptionPaymentSnapshot>();
+
+                var withoutJob = _subscriptionCalculator.CalculateBalance(
+                    settings,
+                    grade.Id,
+                    hasJob: false,
+                    paymentSnapshots: snapshots,
+                    requestedFromMonth: GetStudentCalculationStart(
+                        person,
+                        configuredStart
+                    ),
+                    requestedToMonth: endMonth,
+                    today: today
+                );
+
+                var withJob = _subscriptionCalculator.CalculateBalance(
+                    settings,
+                    grade.Id,
+                    hasJob: true,
+                    paymentSnapshots: snapshots,
+                    requestedFromMonth: GetStudentCalculationStart(
+                        person,
+                        configuredStart
+                    ),
+                    requestedToMonth: endMonth,
+                    today: today
+                );
+
+                var report = new GroupSubscriptionMemberReport
+                {
+                    Person = person,
+                    TotalDue = 0
+                };
+
+                foreach (var month in withoutJob.Months)
+                {
+                    var monthLabel = $"{month.Month}/{month.Year}";
+                    if (month.IsPaid)
+                    {
+                        report.PaidMonths.Add(monthLabel);
+                        continue;
+                    }
+
+                    report.UnpaidMonths.Add(monthLabel);
+                    var employedMonth = withJob.Months.FirstOrDefault(
+                        candidate => candidate.Year == month.Year &&
+                                     candidate.Month == month.Month
+                    );
+
+                    if (employedMonth == null)
+                    {
+                        report.MissingPriceMonths.Add(monthLabel);
+                        report.TotalDue = null;
+                        continue;
+                    }
+
+                    if (month.HasPriceConfiguration != employedMonth.HasPriceConfiguration ||
+                        (month.Amount.HasValue && employedMonth.Amount.HasValue &&
+                         month.Amount.Value != employedMonth.Amount.Value))
+                    {
+                        report.RequiresEmploymentStatus = true;
+                        report.TotalDue = null;
+                        continue;
+                    }
+
+                    if (!month.HasPriceConfiguration ||
+                        !month.Amount.HasValue ||
+                        !employedMonth.Amount.HasValue)
+                    {
+                        report.MissingPriceMonths.Add(monthLabel);
+                        report.TotalDue = null;
+                        continue;
+                    }
+
+                    if (report.TotalDue.HasValue)
+                    {
+                        report.TotalDue += month.Amount.Value;
+                    }
+                }
+
+                reports.Add(report);
+            }
+
+            session.LastGroupAction = CloneGroupAction(action);
+            session.PendingGroupAction = null;
+            TouchSession(session);
+
+            return Ok(new
+            {
+                conversationId,
+                type = "group_subscription_balance",
+                grade = new { id = grade.Id, name = grade.Name },
+                period = new
+                {
+                    fromMonth = fromMonth.ToString("yyyy-MM"),
+                    toMonth = endMonth.ToString("yyyy-MM")
+                },
+                count = reports.Count,
+                answer = BuildGroupSubscriptionBalanceAnswer(
+                    grade,
+                    fromMonth,
+                    endMonth,
+                    reports
+                ),
+                data = reports.Select(report => new
+                {
+                    person = ToBasicPerson(report.Person),
+                    paidMonths = report.PaidMonths,
+                    unpaidMonths = report.UnpaidMonths,
+                    totalDue = report.TotalDue,
+                    missingPriceMonths = report.MissingPriceMonths,
+                    requiresEmploymentStatus = report.RequiresEmploymentStatus
+                })
+            });
+        }
+
         private async Task<List<SubscriptionRecord>>
             GetSubscriptionsForMonth(
                 int gradeId,
@@ -4611,61 +5009,26 @@ namespace church.Controllers
 
             foreach (var item in items)
             {
-                result.Add(
-                    new SubscriptionRecord
-                    {
-                        StudentId =
-                            GetNullableInt(
-                                item,
-                                "studentId"
-                            ),
-
-                        StudentQr =
-                            GetNullableString(
-                                item,
-                                "studentQr"
-                            ),
-
-                        StudentName =
-                            GetNullableString(
-                                item,
-                                "studentName"
-                            ),
-
-                        Excused =
-                            GetNullableString(
-                                item,
-                                "excused"
-                            ),
-
-                        IsPaid =
-                            GetNullableBool(
-                                item,
-                                "isPaid"
-                            ),
-
-                        SubscriptionId =
-                            GetNullableInt(
-                                item,
-                                "subscriptionId"
-                            ),
-
-                        LastUpdated =
-                            GetNullableDate(
-                                item,
-                                "lastUpdated"
-                            ),
-
-                        UserName =
-                            GetNullableString(
-                                item,
-                                "userName"
-                            )
-                    }
-                );
+                result.Add(ParseSubscriptionRecord(item));
             }
 
             return result;
+        }
+
+        private static SubscriptionRecord ParseSubscriptionRecord(
+            JsonElement item)
+        {
+            return new SubscriptionRecord
+            {
+                StudentId = GetNullableInt(item, "studentId"),
+                StudentQr = GetNullableString(item, "studentQr"),
+                StudentName = GetNullableString(item, "studentName"),
+                Excused = GetNullableString(item, "excused"),
+                IsPaid = GetNullableBool(item, "isPaid"),
+                SubscriptionId = GetNullableInt(item, "subscriptionId"),
+                LastUpdated = GetNullableDate(item, "lastUpdated"),
+                UserName = GetNullableString(item, "userName")
+            };
         }
 
         private static List<VisitationRecord>
@@ -5810,6 +6173,67 @@ namespace church.Controllers
 
             return builder.ToString().Trim();
         }
+
+        private static string BuildGroupSubscriptionBalanceAnswer(
+            GradeResult grade,
+            DateTime fromMonth,
+            DateTime toMonth,
+            List<GroupSubscriptionMemberReport> reports)
+        {
+            var builder = new StringBuilder();
+            builder.AppendLine($"تقرير اشتراكات {grade.Name}");
+            builder.AppendLine(
+                $"الفترة المحسوبة: {fromMonth:MM/yyyy} إلى {toMonth:MM/yyyy}"
+            );
+            builder.AppendLine($"عدد الأفراد: {reports.Count}");
+
+            if (reports.Count == 0)
+            {
+                builder.AppendLine("لا يوجد أفراد أو سجلات اشتراك في الفترة المحسوبة.");
+                return builder.ToString().Trim();
+            }
+
+            builder.AppendLine();
+
+            foreach (var report in reports.OrderBy(x => x.Person.Name))
+            {
+                builder.AppendLine($"• {SafeText(report.Person.Name)}");
+                builder.AppendLine(
+                    $"  الأشهر المدفوعة: {FormatMonthList(report.PaidMonths)}"
+                );
+                builder.AppendLine(
+                    $"  الأشهر غير المدفوعة: {FormatMonthList(report.UnpaidMonths)}"
+                );
+
+                if (report.TotalDue.HasValue)
+                {
+                    builder.AppendLine(
+                        $"  إجمالي المطلوب: {report.TotalDue.Value:0.##}"
+                    );
+                }
+                else if (report.RequiresEmploymentStatus)
+                {
+                    builder.AppendLine(
+                        "  إجمالي المطلوب: غير محسوب؛ السعر يعتمد على وجود عمل ولا توجد حالة عمل مسجلة للشخص."
+                    );
+                }
+                else if (report.MissingPriceMonths.Count > 0)
+                {
+                    builder.AppendLine(
+                        $"  إجمالي المطلوب: غير مكتمل؛ لا يوجد سعر مضبوط للأشهر {FormatMonthList(report.MissingPriceMonths)}."
+                    );
+                }
+                else
+                {
+                    builder.AppendLine("  إجمالي المطلوب: 0");
+                }
+            }
+
+            return builder.ToString().Trim();
+        }
+
+        private static string FormatMonthList(List<string> months) =>
+            months.Count == 0 ? "لا يوجد" : string.Join("، ", months);
 
         private static string BuildPersonVisitationAnswer(
             PersonResult person,
@@ -7056,6 +7480,13 @@ namespace church.Controllers
                 PERSON VS GROUP
                 ========================================
 
+                قاعدة حاسمة:
+                إذا احتوت الرسالة على اسم شخص مع طلب حضور أو غياب أو اشتراكات أو زيارات، فهذا طلب لشخص واحد. ابحث عن الاسم ونفذ الطلب، ولا تطلب المرحلة.
+                عبارات مثل "غيابه" و"حضوره" و"اشتراكاته" تعود للشخص المذكور في نفس الرسالة أو المحدد في السياق.
+                لا تعتبر كلمة "مرحلة" وحدها طلباً لمجموعة؛ قد يسأل المستخدم عن مرحلة الشخص.
+                طلب المجموعة يكون واضحاً من كلمات مثل "الطلاب" أو "كل أفراد" أو اسم مرحلة، أو من طلب عام لا يحتوي اسم شخص.
+                عند سؤال المستخدم عن اشتراكات مرحلة حتى شهر معين، نفذ تقرير المرحلة كاملاً حتى ذلك الشهر، مع الأشهر المدفوعة وغير المدفوعة لكل فرد.
+
                 مثال Person:
                 "هات غياب مينا ماجد الشهر اللي فات"
                 => get_person_absence_by_name
@@ -7903,7 +8334,10 @@ namespace church.Controllers
                 "اعدادي",
                 "ثانوي",
                 "جامعه",
-                "خريجين"
+                "خريجين",
+                "خدام",
+                "خادم",
+                "خدامين"
             };
 
             foreach (var alias in aliases)
