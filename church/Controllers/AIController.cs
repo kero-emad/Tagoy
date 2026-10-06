@@ -163,6 +163,11 @@ namespace church.Controllers
 
             public bool AwaitingPersonName { get; set; }
 
+            // وضع البحث بالاسم التقريبي:
+            // المستخدم قال إنه هيبعت أسماء مش متأكد من إملائها
+            // وعايز يعرف الشخص موجود ولا لا وهو في أنهي مرحلة.
+            public bool FuzzyNameLookupMode { get; set; }
+
             public PersonResult? SelectedPerson { get; set; }
 
             public List<PersonResult> PendingCandidates { get; set; } =
@@ -460,6 +465,33 @@ namespace church.Controllers
             }
 
             // =====================================================
+            // FUZZY NAME LOOKUP MODE (SETUP MESSAGE)
+            //
+            // المستخدم بيبلغنا إنه هيبعت أسماء أفراد مش متأكد
+            // من كتابتها صح، وعايز يعرف كل شخص موجود ولا لا
+            // وهو في أنهي مرحلة. نفعّل الوضع ونأكد له الفكرة
+            // من غير ما نحتاج نداء الـ AI إطلاقاً.
+            // =====================================================
+
+            if (!string.IsNullOrWhiteSpace(message) &&
+                IsNameLookupModeRequest(message))
+            {
+                session.FuzzyNameLookupMode = true;
+                TouchSession(session);
+
+                return Ok(new
+                {
+                    conversationId,
+
+                    type =
+                        "name_lookup_mode",
+
+                    answer =
+                        "تمام، ابعتلي اسم الشخص زي ما هو مكتوب عندك حتى لو مش متأكد من الإملاء، وأنا هدور عليه في المراحل المتاحة لك وأقولك موجود ولا لأ، ولو موجود هقولك هو في أنهي مرحلة. ولو حبيت توقف وضع البحث ده اكتب «وقف البحث»."
+                });
+            }
+
+            // =====================================================
             // GRADE BUTTON CLICK
             // =====================================================
 
@@ -514,7 +546,7 @@ namespace church.Controllers
                             "grade_selected",
 
                         answer =
-                            $"تمام، تم اختيار {grade.Name}.",
+                            $"تمام ✅، تم اختيار {grade.Name}.",
 
                         grade = new
                         {
@@ -608,7 +640,7 @@ namespace church.Controllers
                         "person_selected",
 
                     answer =
-                        $"تمام، تم اختيار {selected.Name}.",
+                        $"تمام ✅، تم اختيار {selected.Name}.",
 
                     selectedPerson =
                         ToBasicPerson(selected),
@@ -664,7 +696,7 @@ namespace church.Controllers
                             "person_selected",
 
                         answer =
-                            $"تمام، تقصد {selected.Name}.",
+                            $"تمام ✅، تقصد {selected.Name}.",
 
                         selectedPerson =
                             ToBasicPerson(selected),
@@ -834,7 +866,7 @@ namespace church.Controllers
                     {
                         conversationId,
                         type = "person_not_found",
-                        answer = $"ملقتش شخص باسم «{personQuery}» في المراحل المسموح لك بها. لو تقصد مجموعة، اكتب اسم المرحلة أو قل مثلًا: طلاب المرحلة الإعدادية."
+                        answer = $"معلش 😅 ملقتش شخص باسم «{personQuery}» في المراحل المسموح لك بها. لو تقصد مجموعة، اكتب اسم المرحلة أو قل مثلًا: طلاب المرحلة الإعدادية."
                     });
                 }
             }
@@ -911,6 +943,42 @@ namespace church.Controllers
                         conversationId
                     );
                 }
+            }
+
+            // =====================================================
+            // FUZZY NAME LOOKUP MODE (NAME MESSAGES)
+            //
+            // أي رسالة جوه الوضع ده (ومش طلب بيانات صريح اتعامل
+            // معاه فوق) بتتعامل كاسم شخص محتمل مكتوب بشكل غير دقيق.
+            // =====================================================
+
+            if (session.FuzzyNameLookupMode &&
+                !string.IsNullOrWhiteSpace(message))
+            {
+                if (IsStopNameLookupRequest(message))
+                {
+                    session.FuzzyNameLookupMode = false;
+                    TouchSession(session);
+
+                    return Ok(new
+                    {
+                        conversationId,
+
+                        type =
+                            "message",
+
+                        answer =
+                            "تمام، وقفنا وضع البحث بالاسم. ابعتلي أي طلب تاني وأنا في الخدمة."
+                    });
+                }
+
+                return await HandleFuzzyNameLookup(
+                    message,
+                    session,
+                    grades,
+                    authorization,
+                    conversationId
+                );
             }
 
             // =====================================================
@@ -2718,6 +2786,92 @@ namespace church.Controllers
             );
         }
 
+        // =========================================================
+        // FUZZY NAME LOOKUP MODE DETECTORS
+        // =========================================================
+
+        // رسالة تجهيز وضع البحث بالاسم، مثل:
+        // "عايز ابحث عن اسماء افراد ف المراحل الدراسيه مش متاكد
+        //  من اسم الفرد مكتوب صح ولا غلط ... اكتبلك اسم الفرد
+        //  تشوفه موجود ولا ولو موجود تقولي هو مرحله ايه"
+        private static bool IsNameLookupModeRequest(string message)
+        {
+            if (string.IsNullOrWhiteSpace(message))
+            {
+                return false;
+            }
+
+            var normalized = NormalizeArabic(message);
+
+            var mentionsNames =
+                ContainsAny(
+                    normalized,
+                    "اسم",
+                    "اسماء",
+                    "افراد",
+                    "فرد",
+                    "شخص",
+                    "اشخاص"
+                );
+
+            var mentionsUncertainty =
+                ContainsAny(
+                    normalized,
+                    "مش متاكد",
+                    "مش متاكده",
+                    "متاكدش",
+                    "صح ولا غلط",
+                    "غلط ولا صح",
+                    "مش بشكل دقيق",
+                    "مش بدقه",
+                    "مش دقيق",
+                    "مش مظبوط",
+                    "مكتوب صح",
+                    "هكتبلك",
+                    "اكتبلك اسم",
+                    "هبعتلك",
+                    "هبعت اسم",
+                    "هقولك اسم"
+                );
+
+            var mentionsExistence =
+                ContainsAny(
+                    normalized,
+                    "موجود ولا",
+                    "موجوده ولا",
+                    "شوفه موجود",
+                    "شوفها موجوده",
+                    "لو موجود",
+                    "ان وجد",
+                    "هل موجود",
+                    "دور عليه",
+                    "ابحث عن"
+                );
+
+            return mentionsNames &&
+                (mentionsUncertainty || mentionsExistence);
+        }
+
+        private static bool IsStopNameLookupRequest(string message)
+        {
+            var normalized = NormalizeArabic(message);
+
+            return ContainsAny(
+                normalized,
+                "وقف البحث",
+                "وقف وضع البحث",
+                "بطل بحث",
+                "انهي البحث",
+                "انهاء البحث",
+                "الغي البحث",
+                "الغ البحث",
+                "الغاء البحث",
+                "ارجع للوضع العادي",
+                "كفايه كده",
+                "كفاية كده"
+            );
+        }
+
         private async Task<IActionResult> ResolveOtherPersonName(
             string message,
             ChatSessionState session,
@@ -2756,7 +2910,7 @@ namespace church.Controllers
                 {
                     conversationId,
                     type = "person_not_found",
-                    answer = $"مش لاقي شخص مطابق للاسم «{personName}» في المراحل المتاحة لك. راجع كتابة الاسم أو اكتبه زي ما هو مسجل، وأنا هكمل نفس الطلب."
+                    answer = $"معلش 😅 مش لاقي شخص مطابق للاسم «{personName}» في المراحل المتاحة لك. راجع كتابة الاسم أو اكتبه زي ما هو مسجل، وأنا هكمل نفس الطلب."
                 });
             }
 
@@ -2782,7 +2936,7 @@ namespace church.Controllers
                 {
                     conversationId,
                     type = "person_selected",
-                    answer = $"تمام، لقيت {matches[0].Name}. اختار نوع البيانات اللي محتاجها أو اكتب طلبك مباشرة.",
+                    answer = $"تمام \ud83d\udc4d، لقيت {matches[0].Name}. اختار نوع البيانات اللي محتاجها أو اكتب طلبك مباشرة.",
                     selectedPerson = ToBasicPerson(matches[0]),
                     actions = SelectedPersonActions()
                 });
@@ -2795,6 +2949,141 @@ namespace church.Controllers
                 authorization,
                 conversationId
             );
+        }
+
+        // =========================================================
+        // FUZZY NAME LOOKUP MODE HANDLER
+        //
+        // المستخدم بعت اسم شخص (غالباً بإملاء غير دقيق) جوه وضع
+        // البحث بالاسم. نرد عليه: موجود ولا لا، ولو موجود نقوله
+        // هو في أنهي مرحلة.
+        // =========================================================
+
+        private async Task<IActionResult> HandleFuzzyNameLookup(
+            string message,
+            ChatSessionState session,
+            List<GradeResult> grades,
+            string authorization,
+            string conversationId)
+        {
+            var query =
+                CleanNameLookupQuery(message);
+
+            if (string.IsNullOrWhiteSpace(query))
+            {
+                return Ok(new
+                {
+                    conversationId,
+
+                    type =
+                        "person_name_required",
+
+                    answer =
+                        "ابعتلي اسم الشخص اللي عايز تدور عليه، حتى لو مش متأكد من كتابته صح."
+                });
+            }
+
+            var matches =
+                await FindPeopleByNameFuzzy(
+                    query,
+                    grades,
+                    authorization
+                );
+
+            if (matches.Count == 0)
+            {
+                session.PendingCandidates.Clear();
+                session.PendingPersonAction = null;
+                TouchSession(session);
+
+                return Ok(new
+                {
+                    conversationId,
+
+                    type =
+                        "person_not_found",
+
+                    answer =
+                        $"معلش \ud83d\ude05 مش لاقي حد اسمه قريب من «{query}» في المراحل المتاحة لك.\n" +
+                        "جرّب تكتبه بطريقة تانية، أو ابعت جزء من الاسم (زي الاسم الأول واسم الأب)."
+                });
+            }
+
+            if (matches.Count > 1)
+            {
+                // نعرض المرشحين بأسمائهم ومراحلهم، واختيار أي
+                // واحد فيهم هيظهر ملخصه (اسمه ومرحلته) مباشرة.
+                return PersonAmbiguousResponse(
+                    query,
+                    matches,
+                    grades,
+                    new PersonAction { Kind = "summary" },
+                    session,
+                    conversationId
+                );
+            }
+
+            var person = matches[0];
+
+            SetSelectedPerson(session, person);
+            session.PendingPersonAction = null;
+            TouchSession(session);
+
+            var gradeName =
+                person.Grade.HasValue
+                    ? grades
+                        .FirstOrDefault(
+                            x =>
+                                x.Id ==
+                                person.Grade.Value
+                        )
+                        ?.Name
+                    : null;
+
+            var answer =
+                new StringBuilder();
+
+            answer.Append(
+                $"موجود ✅ {person.Name}"
+            );
+
+            if (!string.IsNullOrWhiteSpace(gradeName))
+            {
+                answer.Append(
+                    $" — المرحلة: {gradeName}"
+                );
+            }
+
+            if (NormalizeArabic(person.Name) !=
+                NormalizeArabic(query))
+            {
+                answer.AppendLine();
+                answer.Append(
+                    $"الاسم المسجل عندنا: «{person.Name}»"
+                );
+            }
+
+            answer.AppendLine();
+            answer.Append(
+                "لو ده مش الشخص المقصود ابعت الاسم تاني بشكل مختلف، أو ابعت اسم جديد للبحث."
+            );
+
+            return Ok(new
+            {
+                conversationId,
+
+                type =
+                    "person_selected",
+
+                answer =
+                    answer.ToString(),
+
+                selectedPerson =
+                    ToBasicPerson(person),
+
+                actions =
+                    SelectedPersonActions()
+            });
         }
 
         private async Task<IActionResult>
@@ -2823,7 +3112,7 @@ namespace church.Controllers
                         "person_not_found",
 
                     answer =
-                        $"لم أجد شخصاً باسم \"{name}\" ضمن البيانات المسموح لك بعرضها."
+                        $"معلش \ud83d\ude05 لم أجد شخصاً باسم \"{name}\" ضمن البيانات المسموح لك بعرضها."
                 });
             }
 
@@ -2912,11 +3201,11 @@ namespace church.Controllers
                 new StringBuilder();
 
             answer.AppendLine(
-                $"وجدت أكثر من شخص مطابق للاسم \"{requestedName}\"."
+                $"لقيت أكتر من شخص قريب من الاسم \"{requestedName}\" \ud83e\udd14"
             );
 
             answer.AppendLine(
-                "اختار الشخص المقصود:"
+                "اختار المقصود وأنا هكمل معاك ❤️"
             );
 
             answer.AppendLine();
@@ -5429,22 +5718,65 @@ namespace church.Controllers
             };
         }
 
+        // كل البحث بالاسم بيعدي من هنا، وبيستخدم المطابقة التقريبية
+        // الذكية (محاذاة بالترتيب + مسافة تعديل) كطبقة واحدة موحّدة،
+        // عشان أي خطأ إملائي بسيط في أي مكان في النظام يتفهم صح
+        // بدل ما يرجع "مش موجود" غلط.
         private async Task<List<PersonResult>>
             FindPeopleByName(
                 string name,
                 List<GradeResult> grades,
                 string authorization)
         {
-            var query =
-                NormalizeArabic(
-                    name
-                );
+            return await FindPeopleByNameFuzzy(
+                name,
+                grades,
+                authorization
+            );
+        }
 
-            var exact =
+        // =========================================================
+        // FUZZY PEOPLE SEARCH
+        //
+        // يُستخدم لما الاسم المكتوب غير دقيق إملائياً. بنطابق كل
+        // اسم مرشح بمحاذاة كلمات الاستعلام بترتيبها مع كلمات اسم
+        // الشخص (الاسم الأول مع الأول، اسم الأب مع اللي بعده...)
+        // بدل مطابقة أي كلمة مع أي كلمة، عشان ما نحيدش عن الاسم
+        // المقصود فعلاً. التطابق الكامل للاسم بياخد أولوية مطلقة.
+        // =========================================================
+
+        private const double FuzzyTokenFloor = 0.3;
+        private const double FuzzyOverallThreshold = 0.55;
+
+        private async Task<List<PersonResult>>
+            FindPeopleByNameFuzzy(
+                string name,
+                List<GradeResult> grades,
+                string authorization)
+        {
+            var normalizedQuery =
+                NormalizeArabic(name);
+
+            var queryTokens =
+                normalizedQuery
+                    .Split(
+                        ' ',
+                        StringSplitOptions.RemoveEmptyEntries
+                    )
+                    .Select(StripArabicDefiniteArticle)
+                    .Where(token => token.Length > 0)
+                    .ToList();
+
+            if (queryTokens.Count == 0)
+            {
+                return new List<PersonResult>();
+            }
+
+            var exactMatches =
                 new List<PersonResult>();
 
-            var partial =
-                new List<PersonResult>();
+            var scored =
+                new List<(PersonResult Person, double Score)>();
 
             foreach (var grade in grades)
             {
@@ -5459,9 +5791,7 @@ namespace church.Controllers
                     continue;
                 }
 
-                foreach (
-                    var person
-                    in people.People)
+                foreach (var person in people.People)
                 {
                     if (string.IsNullOrWhiteSpace(
                         person.Name))
@@ -5470,49 +5800,264 @@ namespace church.Controllers
                     }
 
                     var normalizedName =
-                        NormalizeArabic(
-                            person.Name
-                        );
+                        NormalizeArabic(person.Name);
 
                     if (normalizedName ==
-                        query)
+                        normalizedQuery)
                     {
-                        exact.Add(
-                            person
-                        );
+                        exactMatches.Add(person);
+                        continue;
                     }
-                    else if (
-                        normalizedName.Contains(
-                            query,
-                            StringComparison.OrdinalIgnoreCase
-                        ))
+
+                    var nameTokens =
+                        normalizedName
+                            .Split(
+                                ' ',
+                                StringSplitOptions.RemoveEmptyEntries
+                            )
+                            .Select(StripArabicDefiniteArticle)
+                            .Where(token => token.Length > 0)
+                            .ToList();
+
+                    if (nameTokens.Count == 0)
                     {
-                        partial.Add(
-                            person
-                        );
+                        continue;
+                    }
+
+                    if (TryScoreNameMatch(
+                            queryTokens,
+                            nameTokens,
+                            out var score))
+                    {
+                        scored.Add((person, score));
                     }
                 }
             }
 
-            var results =
-                exact.Count > 0
-                    ? exact
-                    : partial;
+            if (exactMatches.Count > 0)
+            {
+                return DedupPeople(exactMatches);
+            }
 
-            return results
+            return DedupPeople(
+                scored
+                    .OrderByDescending(x => x.Score)
+                    .Select(x => x.Person)
+            )
+            .Take(7)
+            .ToList();
+        }
+
+        // بتحاذي كلمات الاستعلام مع كلمات اسم الشخص بالترتيب،
+        // وبتجرب كل الإزاحات الممكنة (مثلاً لو المستخدم كتب اسم
+        // الأب واسم الجد من غير الاسم الأول) وتاخد أفضل إزاحة.
+        // أي كلمة من الاستعلام لازم توصل لحد أدنى من التشابه، وإلا
+        // اتلغت الإزاحة دي بالكامل، عشان ما نقبلش تطابق عشوائي.
+        private static bool TryScoreNameMatch(
+            List<string> queryTokens,
+            List<string> nameTokens,
+            out double score)
+        {
+            score = 0;
+            var found = false;
+
+            var maxOffset =
+                Math.Max(0, nameTokens.Count - queryTokens.Count);
+
+            for (var offset = 0; offset <= maxOffset; offset++)
+            {
+                var sum = 0.0;
+                var minTokenScore = double.MaxValue;
+
+                for (var i = 0; i < queryTokens.Count; i++)
+                {
+                    var nameIndex = offset + i;
+
+                    var tokenScore =
+                        nameIndex < nameTokens.Count
+                            ? TokenSimilarity(
+                                queryTokens[i],
+                                nameTokens[nameIndex]
+                            )
+                            : 0.0;
+
+                    sum += tokenScore;
+
+                    if (tokenScore < minTokenScore)
+                    {
+                        minTokenScore = tokenScore;
+                    }
+                }
+
+                if (minTokenScore < FuzzyTokenFloor)
+                {
+                    continue;
+                }
+
+                var average =
+                    sum / queryTokens.Count;
+
+                if (average > score)
+                {
+                    score = average;
+                    found = true;
+                }
+            }
+
+            return found && score >= FuzzyOverallThreshold;
+        }
+
+        private static List<PersonResult> DedupPeople(
+            IEnumerable<PersonResult> people)
+        {
+            return people
                 .GroupBy(
                     x =>
-                        !string.IsNullOrWhiteSpace(
-                            x.Qr
-                        )
+                        !string.IsNullOrWhiteSpace(x.Qr)
                             ? x.Qr!
                             : $"ID-{x.Id}"
                 )
-                .Select(
-                    x =>
-                        x.First()
-                )
+                .Select(x => x.First())
                 .ToList();
+        }
+
+        private static string StripArabicDefiniteArticle(
+            string token)
+        {
+            if (token.Length > 3 &&
+                token.StartsWith(
+                    "ال",
+                    StringComparison.Ordinal
+                ))
+            {
+                return token.Substring(2);
+            }
+
+            return token;
+        }
+
+        // تشابه بين كلمتين بالاعتماد على مسافة التعديل مع احتساب
+        // قلب حرفين متجاورين كخطوة واحدة (خطأ إملائي شائع جداً،
+        // زي "مينا" / "منيا")، بدل اعتبارها خطوتين منفصلتين.
+        private static double TokenSimilarity(string a, string b)
+        {
+            if (a == b)
+            {
+                return 1.0;
+            }
+
+            if (a.Length == 0 || b.Length == 0)
+            {
+                return 0.0;
+            }
+
+            var distance = DamerauLevenshteinDistance(a, b);
+            var maxLength = Math.Max(a.Length, b.Length);
+
+            return Math.Max(0.0, 1.0 - (double)distance / maxLength);
+        }
+
+        private static int DamerauLevenshteinDistance(string a, string b)
+        {
+            var lenA = a.Length;
+            var lenB = b.Length;
+
+            var distance = new int[lenA + 1, lenB + 1];
+
+            for (var i = 0; i <= lenA; i++)
+            {
+                distance[i, 0] = i;
+            }
+
+            for (var j = 0; j <= lenB; j++)
+            {
+                distance[0, j] = j;
+            }
+
+            for (var i = 1; i <= lenA; i++)
+            {
+                for (var j = 1; j <= lenB; j++)
+                {
+                    var cost =
+                        a[i - 1] == b[j - 1] ? 0 : 1;
+
+                    var value = Math.Min(
+                        Math.Min(
+                            distance[i - 1, j] + 1,
+                            distance[i, j - 1] + 1
+                        ),
+                        distance[i - 1, j - 1] + cost
+                    );
+
+                    if (i > 1 && j > 1 &&
+                        a[i - 1] == b[j - 2] &&
+                        a[i - 2] == b[j - 1])
+                    {
+                        value = Math.Min(
+                            value,
+                            distance[i - 2, j - 2] + cost
+                        );
+                    }
+
+                    distance[i, j] = value;
+                }
+            }
+
+            return distance[lenA, lenB];
+        }
+
+        // تنضيف رسالة وضع البحث بالاسم من كلمات الحشو
+        // علشان يفضل الاسم فقط، مثلاً:
+        // "هو مينا ماجد موجود ولا لا؟" => "مينا ماجد"
+        private static string CleanNameLookupQuery(string message)
+        {
+            if (string.IsNullOrWhiteSpace(message))
+            {
+                return "";
+            }
+
+            var normalized =
+                NormalizeArabic(
+                    ConvertArabicDigits(message)
+                );
+
+            var fillerWords =
+                new HashSet<string>(StringComparer.Ordinal)
+                {
+                    "هو", "هي", "اسمه", "اسمها", "اسم", "الاسم",
+                    "اللي", "دور", "دوري", "ابحث", "عن", "شوف",
+                    "شوفه", "شوفها", "موجود", "موجوده", "ولا",
+                    "لا", "مش", "في", "ف", "عندك", "عندكم", "يا",
+                    "طيب", "طب", "لو", "سمحت", "ممكن", "عايز",
+                    "عاوز", "عاوزه", "اعرف", "مرحله", "المرحله",
+                    "مرحلته", "مرحلتها", "ايه", "انهي", "هل",
+                    "ده", "دي", "دا", "بتاع", "بتاعت", "حد",
+                    "معاك", "معاكم", "دلوقتي", "كمان", "برضه",
+                    "بردو", "تمام"
+                };
+
+            var tokens =
+                normalized
+                    .Split(
+                        ' ',
+                        StringSplitOptions.RemoveEmptyEntries
+                    )
+                    .Select(
+                        token =>
+                            token.Trim(
+                                '،', ',', '.', '؟', '?', ':',
+                                ';', 'ـ', '!', '"', '\'',
+                                '(', ')', '«', '»'
+                            )
+                    )
+                    .Where(
+                        token =>
+                            token.Length > 0 &&
+                            !fillerWords.Contains(token)
+                    )
+                    .ToList();
+
+            return string.Join(' ', tokens);
         }
 
         private async Task<PersonResult?>
@@ -5936,6 +6481,10 @@ namespace church.Controllers
                 new StringBuilder();
 
             builder.AppendLine(
+                "تمام، ده تقرير الغياب اللي طلبته \ud83d\udccb"
+            );
+
+            builder.AppendLine(
                 $"الغياب — {person.Name}"
             );
 
@@ -6006,6 +6555,10 @@ namespace church.Controllers
                 new StringBuilder();
 
             builder.AppendLine(
+                "اتفضل، ده تقرير الحضور \ud83d\udc4c"
+            );
+
+            builder.AppendLine(
                 $"الحضور — {person.Name}"
             );
 
@@ -6068,6 +6621,10 @@ namespace church.Controllers
                 new StringBuilder();
 
             builder.AppendLine(
+                "تمام، دي بيانات المجموعة اللي طلبتها \ud83d\udcca"
+            );
+
+            builder.AppendLine(
                 $"{(isAbsence ? "الغياب" : "الحضور")} — {grade.Name}"
             );
 
@@ -6121,6 +6678,10 @@ namespace church.Controllers
                 new StringBuilder();
 
             builder.AppendLine(
+                "تمام، دي تفاصيل الاشتراك \ud83d\udcb0"
+            );
+
+            builder.AppendLine(
                 $"الاشتراكات — {person.Name}"
             );
 
@@ -6163,6 +6724,10 @@ namespace church.Controllers
         {
             var builder =
                 new StringBuilder();
+
+            builder.AppendLine(
+                "اتفضل، دي حالة الاشتراكات حسب الفترة \ud83d\udcb0"
+            );
 
             builder.AppendLine(
                 $"الاشتراكات — {person.Name}"
@@ -6218,6 +6783,10 @@ namespace church.Controllers
         {
             var builder =
                 new StringBuilder();
+
+            builder.AppendLine(
+                "تمام، ده تقرير اشتراكات المرحلة \ud83d\udcb0"
+            );
 
             builder.AppendLine(
                 $"الاشتراكات — {grade.Name}"
@@ -6302,6 +6871,7 @@ namespace church.Controllers
             List<GroupSubscriptionMemberReport> reports)
         {
             var builder = new StringBuilder();
+            builder.AppendLine("اتفضل، ده الحساب الختامي لاشتراكات المرحلة \ud83d\udcca");
             builder.AppendLine($"تقرير اشتراكات {grade.Name}");
             builder.AppendLine(
                 $"الفترة المحسوبة: {fromMonth:MM/yyyy} إلى {toMonth:MM/yyyy}"
@@ -6365,6 +6935,10 @@ namespace church.Controllers
                 new StringBuilder();
 
             builder.AppendLine(
+                "تمام، دي الزيارات المسجلة \ud83d\ude4f"
+            );
+
+            builder.AppendLine(
                 $"الزيارات — {person.Name}"
             );
 
@@ -6419,6 +6993,10 @@ namespace church.Controllers
         {
             var builder =
                 new StringBuilder();
+
+            builder.AppendLine(
+                "اتفضل، دي زيارات المرحلة \ud83d\ude4f"
+            );
 
             builder.AppendLine(
                 $"الزيارات — {grade.Name}"
@@ -6493,6 +7071,10 @@ namespace church.Controllers
         {
             var builder =
                 new StringBuilder();
+
+            builder.AppendLine(
+                "اتفضل، دي بياناته \ud83d\ude0a"
+            );
 
             builder.AppendLine(
                 $"بيانات {person.Name}"
@@ -7785,6 +8367,14 @@ namespace church.Controllers
                 roleId هو دور الخادم الثابت.
 
                 ========================================
+                NAME LOOKUP / VERIFYING PEOPLE
+                ========================================
+
+                لو المستخدم قال إنه مش متأكد من كتابة اسم شخص، أو إنه هيبعت أسماء علشان يتأكد إنها موجودة أو يعرف مرحلة كل شخص:
+                اعتبر أي اسم شخص يبعته بعدها طلب تحقق من الاسم، واستخدم get_person_details_by_name مع الاسم المستخرج فقط بدون أي كلمات إضافية.
+                لا ترد على الأسماء برد عام ولا تعتذر؛ دائماً استدعِ الـ tool بالاسم.
+
+                ========================================
                 SECURITY
                 ========================================
 
@@ -7903,7 +8493,7 @@ namespace church.Controllers
                     "person_selected",
 
                 answer =
-                    $"الشخص المحدد: {person.Name}"
+                    $"تمام \ud83d\udc4c الشخص المحدد: {person.Name}"
                     +
                     (
                         !string.IsNullOrWhiteSpace(
@@ -8341,6 +8931,10 @@ namespace church.Controllers
                 new StringBuilder();
 
             builder.AppendLine(
+                "تمام، دي المراحل المتاحة دلوقتي \ud83d\udcda"
+            );
+
+            builder.AppendLine(
                 $"المراحل الحالية: {grades.Count}"
             );
 
@@ -8362,6 +8956,10 @@ namespace church.Controllers
         {
             var builder =
                 new StringBuilder();
+
+            builder.AppendLine(
+                "اتفضل، دي قائمة الأفراد \ud83d\udc65"
+            );
 
             builder.AppendLine(
                 $"{grade.Name} — العدد: {people.Count}"
