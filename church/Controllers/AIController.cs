@@ -183,6 +183,12 @@ namespace church.Controllers
 
             public int? LastGradeId { get; set; }
 
+            // Multi-turn write operations (attendance, subscriptions and
+            // visitations) are kept separate from the existing read state.
+            // This prevents a short follow-up such as "الشهر ده" or the
+            // visitation result from being mistaken for a new AI query.
+            public PendingWriteOperation? PendingWriteOperation { get; set; }
+
             public DateTime UpdatedAtUtc { get; set; } =
                 DateTime.UtcNow;
         }
@@ -217,6 +223,37 @@ namespace church.Controllers
             public bool IncludeAudit { get; set; }
 
             public string PaymentStatus { get; set; } = "all";
+        }
+
+        private class PendingWriteOperation
+        {
+            public string Kind { get; set; } = "";
+
+            public List<string> Names { get; set; } = new();
+
+            public DateTime? Date { get; set; }
+        }
+
+        private class ResolvedWritePerson
+        {
+            public string RequestedName { get; set; } = "";
+
+            public PersonResult Person { get; set; } = new();
+
+            public GradeResult Grade { get; set; } = new();
+        }
+
+        private class SubscriptionWriteItem
+        {
+            public ResolvedWritePerson Member { get; set; } = new();
+
+            public int Month { get; set; }
+
+            public int Year { get; set; }
+
+            public decimal Amount { get; set; }
+
+            public bool WasAlreadyPaid { get; set; }
         }
 
         // =========================================================
@@ -415,6 +452,19 @@ namespace church.Controllers
             var egyptNow =
                 GetEgyptNow().Date;
 
+            // Greetings and questions about the assistant do not depend on
+            // grades or an external AI provider.  Answer them immediately
+            // and personalize the reply from the authenticated account.
+            var casualResponse = TryHandleCasualConversation(
+                message,
+                conversationId
+            );
+
+            if (casualResponse != null)
+            {
+                return casualResponse;
+            }
+
             // =====================================================
             // LOAD CURRENT GRADES
             // ALWAYS DYNAMIC
@@ -437,6 +487,23 @@ namespace church.Controllers
 
             var grades =
                 gradesResult.Grades;
+
+            // Write requests are handled deterministically before the read
+            // router and before the language model.  The database remains
+            // the source of truth for identity, grade, permissions, audit
+            // user and timestamps.
+            var writeResponse = await TryHandleWriteRequest(
+                message,
+                session,
+                grades,
+                authorization,
+                conversationId
+            );
+
+            if (writeResponse != null)
+            {
+                return writeResponse;
+            }
 
             if (IsOtherPersonChoice(message))
             {
@@ -1968,7 +2035,7 @@ namespace church.Controllers
                                 filtered,
 
                             actions =
-                                SelectedPersonActions()
+                                SubscriptionFollowUpActions()
                         });
                     }
 
@@ -2092,7 +2159,7 @@ namespace church.Controllers
                         periods,
 
                     actions =
-                        SelectedPersonActions()
+                        SubscriptionFollowUpActions()
                 });
             }
 
@@ -4004,6 +4071,28 @@ namespace church.Controllers
         // PERIOD PARSER
         // =========================================================
 
+        private static bool IsThroughTodayPhrase(string normalizedMessage) =>
+            ContainsAny(
+                normalizedMessage,
+                "لحد دلوقتي",
+                "لغاية دلوقتي",
+                "لحد دلوقت",
+                "لغاية دلوقت",
+                "لحد النهارده",
+                "لغاية النهارده",
+                "لحد النهاردة",
+                "لغاية النهاردة",
+                "حتى دلوقتي",
+                "حتى دلوقت",
+                "حتى النهارده",
+                "حتى النهاردة",
+                "لحد الان",
+                "لغاية الان",
+                "حتى الان",
+                "لحد اليوم",
+                "لغاية اليوم",
+                "حتى اليوم");
+
         private static bool TryResolveDateRangeFromMessage(
             string message,
             DateTime now,
@@ -4316,14 +4405,7 @@ namespace church.Controllers
 
             if (parsedDates.Count == 1)
             {
-                if (ContainsAny(
-                        normalized,
-                        "لحد دلوقتي",
-                        "حتى دلوقتي",
-                        "لحد الان",
-                        "حتى الان",
-                        "لحد النهارده",
-                        "حتى اليوم"))
+                if (IsThroughTodayPhrase(normalized))
                 {
                     fromDate =
                         parsedDates[0];
@@ -4405,13 +4487,7 @@ namespace church.Controllers
                 if (!ExtractYearFromMessage(
                         normalized
                     ).HasValue
-                    &&
-                    ContainsAny(
-                        normalized,
-                        "لحد دلوقتي",
-                        "حتى دلوقتي",
-                        "لحد الان",
-                        "حتى الان")
+                    && IsThroughTodayPhrase(normalized)
                     &&
                     monthName.Value >
                     now.Month)
@@ -4427,12 +4503,7 @@ namespace church.Controllers
                         1
                     );
 
-                if (ContainsAny(
-                        normalized,
-                        "لحد دلوقتي",
-                        "حتى دلوقتي",
-                        "لحد الان",
-                        "حتى الان"))
+                if (IsThroughTodayPhrase(normalized))
                 {
                     toDate =
                         now;
@@ -4486,12 +4557,7 @@ namespace church.Controllers
                         1
                     );
 
-                if (ContainsAny(
-                        normalized,
-                        "لحد دلوقتي",
-                        "حتى دلوقتي",
-                        "لحد الان",
-                        "حتى الان"))
+                if (IsThroughTodayPhrase(normalized))
                 {
                     if (!numericMonth.Groups[2].Success &&
                         monthNumber >
@@ -4697,6 +4763,1165 @@ namespace church.Controllers
                     action.FromDate
                 );
             }
+        }
+
+        // =========================================================
+        // GREETINGS AND TAGOY IDENTITY
+        // =========================================================
+
+        private IActionResult? TryHandleCasualConversation(
+            string message,
+            string conversationId)
+        {
+            if (string.IsNullOrWhiteSpace(message))
+            {
+                return null;
+            }
+
+            var normalized = NormalizeArabic(message);
+            var displayName = DisplayUserName(
+                User.FindFirstValue(ClaimTypes.Name)
+                ?? User.Identity?.Name
+            );
+
+            if (IsTagoyIdentityQuestion(normalized))
+            {
+                var asksAboutBuilder = ContainsAny(
+                    normalized,
+                    "مين عملك",
+                    "مين اللي عملك",
+                    "مين برمجك",
+                    "مين اللي برمجك",
+                    "مين بناك",
+                    "مين اللي بناك",
+                    "مين صممك",
+                    "مين طورك",
+                    "اتبرمجت ازاي",
+                    "اتعملت ازاي"
+                );
+
+                var opening = asksAboutBuilder
+                    ? $"سؤال جميل يا {displayName} 😄"
+                    : $"أنا Tagoy يا {displayName} 🤝";
+
+                return ChatMessage(
+                    conversationId,
+                    $"{opening}\n" +
+                    "أنا صديقك المساعد جوه الخدمة؛ اتبنيت علشان أنظم تفاصيلها، أوصل للمعلومة بسرعة، وأحوّل زحمة الحضور والافتقاد والاشتراكات لشغل واضح ودقيق.\n\n" +
+                    "واللي قام ببنائي هو مينا ماجد ✨ بناني بفكرة إن التكنولوجيا الحقيقية مش مجرد كود، لكنها عقل منظم يسند الخادم ويحفظ تعب الخدمة. كل جزء فيَّ اتصمم علشان أخلي الإدارة أهدى، القرار أذكى، والخدمة أقوى."
+                );
+            }
+
+            if (IsFriendlyGreeting(normalized) &&
+                !LooksLikeDataRequest(message) &&
+                !HasWriteIntent(normalized))
+            {
+                return ChatMessage(
+                    conversationId,
+                    $"أنا تمام وزي الفل يا {displayName} 😄✨ منورني! قولي تحب نرتب إيه في الخدمة النهارده؟"
+                );
+            }
+
+            return null;
+        }
+
+        private static bool IsFriendlyGreeting(string normalized)
+        {
+            if (normalized.Length > 120)
+            {
+                return false;
+            }
+
+            return ContainsAny(
+                       normalized,
+                       "ازيك",
+                       "عامل ايه",
+                       "عامله ايه",
+                       "اخبارك",
+                       "هالو",
+                       "هاي",
+                       "هلا",
+                       "اهلا",
+                       "مرحبا",
+                       "صباح الخير",
+                       "صباح الفل",
+                       "مساء الخير",
+                       "السلام عليكم",
+                       "سلام عليكم"
+                   )
+                   || Regex.IsMatch(
+                       normalized,
+                       @"(?:^|\s)(?:hello|hi|hey|how are you|good morning|good evening)(?:\s|$)",
+                       RegexOptions.IgnoreCase
+                   );
+        }
+
+        private static bool IsTagoyIdentityQuestion(string normalized)
+        {
+            if (normalized.Length > 220)
+            {
+                return false;
+            }
+
+            return ContainsAny(
+                normalized,
+                "انت مين",
+                "مين انت",
+                "انت ايه",
+                "اسمك ايه",
+                "مين حضرتك",
+                "عرف نفسك",
+                "عرفني بنفسك",
+                "عرفني عن نفسك",
+                "قولي عن نفسك",
+                "معلومات عنك",
+                "ايه معلوماتك",
+                "بتعمل ايه",
+                "وظيفتك ايه",
+                "ايه هو tagoy",
+                "مين tagoy",
+                "مين تاجوي",
+                "مين تاجوي",
+                "مين عملك",
+                "مين اللي عملك",
+                "مين برمجك",
+                "مين اللي برمجك",
+                "مين بناك",
+                "مين اللي بناك",
+                "مين صممك",
+                "مين مخترعك",
+                "مين طورك",
+                "اتبرمجت ازاي",
+                "اتعملت ازاي"
+            );
+        }
+
+        // =========================================================
+        // DETERMINISTIC WRITE WORKFLOWS
+        // =========================================================
+
+        private async Task<IActionResult?> TryHandleWriteRequest(
+            string message,
+            ChatSessionState session,
+            List<GradeResult> grades,
+            string authorization,
+            string conversationId)
+        {
+            if (string.IsNullOrWhiteSpace(message))
+            {
+                return null;
+            }
+
+            var normalized = NormalizeArabic(message);
+            var now = GetEgyptNow();
+
+            if (session.PendingWriteOperation != null &&
+                ContainsAny(normalized, "الغاء", "إلغاء", "الغي", "خلاص سيب"))
+            {
+                session.PendingWriteOperation = null;
+                TouchSession(session);
+                return ChatMessage(conversationId, "تمام، لغيت العملية اللي كانت مستنية بيانات 👍");
+            }
+
+            // An explicit write command always wins over an older pending
+            // question, so the user can naturally change direction.
+            if (HasWriteIntent(normalized) &&
+                ContainsAny(normalized, "غياب", "غايب", "حضور", "حاضر"))
+            {
+                var names = ExtractMutationNames(message, "attendance");
+                if (names.Count == 0 && session.PendingWriteOperation?.Names.Count > 0)
+                {
+                    names = session.PendingWriteOperation.Names.ToList();
+                }
+                if (names.Count == 0)
+                {
+                    return ChatMessage(conversationId, "ابعتلي الأسماء اللي عايز تسجلها، كل اسم في سطر أو افصل بينهم بفاصلة.");
+                }
+
+                session.PendingWriteOperation = null;
+                var status = ContainsAny(normalized, "غياب", "غايب")
+                    ? Status.Absent
+                    : Status.Present;
+
+                return await RegisterAttendanceAsync(
+                    names,
+                    status,
+                    now.Date,
+                    grades,
+                    authorization,
+                    conversationId
+                );
+            }
+
+            if (HasWriteIntent(normalized) &&
+                ContainsAny(normalized, "اشتراك", "اشتراكات"))
+            {
+                if (TryParsePerPersonMonthAssignments(message, now, out var directAssignments, out var directYear))
+                {
+                    session.PendingWriteOperation = null;
+                    return await RegisterSubscriptionsByAssignmentsAsync(
+                        directAssignments,
+                        directYear,
+                        grades,
+                        authorization,
+                        conversationId
+                    );
+                }
+
+                var names = ExtractMutationNames(message, "subscriptions");
+                if (names.Count == 0 && session.PendingWriteOperation?.Names.Count > 0)
+                {
+                    names = session.PendingWriteOperation.Names.ToList();
+                }
+
+                if (names.Count == 0)
+                {
+                    return ChatMessage(conversationId, "ابعتلي أسماء الأفراد اللي هنسجل اشتراكاتهم، كل اسم في سطر أو افصل بينهم بفاصلة.");
+                }
+
+                if (!TryExtractSubscriptionMonths(message, now, out var months, out var year))
+                {
+                    session.PendingWriteOperation = new PendingWriteOperation
+                    {
+                        Kind = "subscriptions_months",
+                        Names = names
+                    };
+                    TouchSession(session);
+
+                    return ChatMessage(
+                        conversationId,
+                        "تمام، نسجلهم شهر كام؟ ممكن تقول «الشهر ده» أو «1 و2 و3». ولو كل فرد ليه شهور مختلفة ابعتها بالشكل ده: مينا ماجد: 1، 2"
+                    );
+                }
+
+                session.PendingWriteOperation = null;
+                return await RegisterSubscriptionsAsync(
+                    names,
+                    months,
+                    year,
+                    grades,
+                    authorization,
+                    conversationId
+                );
+            }
+
+            if (HasWriteIntent(normalized) &&
+                ContainsAny(normalized, "افتقاد", "زياره", "زيارة"))
+            {
+                ExtractVisitationCommand(message, out var personName, out var result);
+                if (string.IsNullOrWhiteSpace(personName))
+                {
+                    return ChatMessage(conversationId, "ابعت اسم الشخص الأول وناتج الافتقاد علشان أسجله.");
+                }
+
+                if (string.IsNullOrWhiteSpace(result))
+                {
+                    session.PendingWriteOperation = new PendingWriteOperation
+                    {
+                        Kind = "visitation_result",
+                        Names = new List<string> { personName },
+                        Date = now.Date
+                    };
+                    TouchSession(session);
+
+                    return ChatMessage(
+                        conversationId,
+                        $"تمام، فين ناتج افتقاد {personName}؟ يعني إيه اللي حصل في الافتقاد؟"
+                    );
+                }
+
+                session.PendingWriteOperation = null;
+                return await RegisterVisitationAsync(
+                    personName,
+                    result,
+                    now.Date,
+                    grades,
+                    authorization,
+                    conversationId
+                );
+            }
+
+            if (session.PendingWriteOperation is { } pending)
+            {
+                if (pending.Kind == "choose_names_action")
+                {
+                    if (IsAffirmative(normalized) ||
+                        ContainsAny(normalized, "معلومات", "بيانات", "تفاصيل"))
+                    {
+                        session.PendingWriteOperation = null;
+                        return await ShowNamedPeopleDetailsAsync(
+                            pending.Names,
+                            grades,
+                            authorization,
+                            conversationId
+                        );
+                    }
+
+                    if (ContainsAny(normalized, "غياب", "غايبين"))
+                    {
+                        session.PendingWriteOperation = null;
+                        return await RegisterAttendanceAsync(
+                            pending.Names,
+                            Status.Absent,
+                            now.Date,
+                            grades,
+                            authorization,
+                            conversationId
+                        );
+                    }
+
+                    if (ContainsAny(normalized, "اشتراك", "اشتراكات"))
+                    {
+                        session.PendingWriteOperation = new PendingWriteOperation
+                        {
+                            Kind = "subscriptions_months",
+                            Names = pending.Names
+                        };
+                        TouchSession(session);
+                        return ChatMessage(
+                            conversationId,
+                            "تمام، نسجلهم شهر كام؟ قول «الشهر ده» أو اكتب الشهور زي «1 و2 و3». ولو كل فرد مختلف ابعت «الاسم: الشهور» كل واحد في سطر."
+                        );
+                    }
+
+                    if (ContainsAny(normalized, "افتقاد", "زياره", "زيارة", "زيارات"))
+                    {
+                        session.PendingWriteOperation = new PendingWriteOperation
+                        {
+                            Kind = "visitation_batch",
+                            Names = pending.Names
+                        };
+                        TouchSession(session);
+                        return ChatMessage(
+                            conversationId,
+                            "تمام، ابعتهم اسم اسم ومع كل اسم ناتج الافتقاد علشان أسجله، مثال: مينا ماجد: مردش على التليفون."
+                        );
+                    }
+                }
+
+                if (pending.Kind == "subscriptions_months")
+                {
+                    if (TryParsePerPersonMonthAssignments(message, now, out var assignments, out var assignmentYear))
+                    {
+                        session.PendingWriteOperation = null;
+                        return await RegisterSubscriptionsByAssignmentsAsync(
+                            assignments,
+                            assignmentYear,
+                            grades,
+                            authorization,
+                            conversationId
+                        );
+                    }
+
+                    if (TryExtractSubscriptionMonths(message, now, out var months, out var year))
+                    {
+                        session.PendingWriteOperation = null;
+                        return await RegisterSubscriptionsAsync(
+                            pending.Names,
+                            months,
+                            year,
+                            grades,
+                            authorization,
+                            conversationId
+                        );
+                    }
+
+                    return ChatMessage(
+                        conversationId,
+                        "محتاج الشهر علشان أسجل: قول «الشهر ده» أو اكتب أرقام الشهور، ولو مختلفة اكتب كل اسم وبعده نقطتين وشهوره."
+                    );
+                }
+
+                if (pending.Kind == "visitation_result")
+                {
+                    session.PendingWriteOperation = null;
+                    return await RegisterVisitationAsync(
+                        pending.Names[0],
+                        message.Trim(),
+                        pending.Date ?? now.Date,
+                        grades,
+                        authorization,
+                        conversationId
+                    );
+                }
+
+                if (pending.Kind == "visitation_batch")
+                {
+                    if (!TryExtractPendingVisitation(message, pending.Names, out var name, out var result))
+                    {
+                        return ChatMessage(
+                            conversationId,
+                            "ابعت اسم واحد من القائمة ومعاه ناتج الافتقاد، مثال: مينا ماجد: اتكلمنا معاه وهييجي الاجتماع الجاي."
+                        );
+                    }
+
+                    var response = await RegisterVisitationAsync(
+                        name,
+                        result,
+                        now.Date,
+                        grades,
+                        authorization,
+                        conversationId
+                    );
+
+                    pending.Names.RemoveAll(x =>
+                        NormalizeArabic(x) == NormalizeArabic(name));
+
+                    session.PendingWriteOperation = pending.Names.Count == 0
+                        ? null
+                        : pending;
+                    TouchSession(session);
+                    return response;
+                }
+            }
+
+            if (TryExtractBareNames(message, out var bareNames))
+            {
+                session.PendingWriteOperation = new PendingWriteOperation
+                {
+                    Kind = "choose_names_action",
+                    Names = bareNames
+                };
+                TouchSession(session);
+
+                return ChatMessage(
+                    conversationId,
+                    "تمام، دول تحب أجيبلك معلومات كل فرد فيهم، ولا نسجل غيابهم، ولا اشتراكاتهم، ولا زيارات/افتقاد؟"
+                );
+            }
+
+            return null;
+        }
+
+        private static bool HasWriteIntent(string normalized) =>
+            ContainsAny(
+                normalized,
+                "سجل",
+                "سجلي",
+                "سجللي",
+                "سجل لى",
+                "تسجيل",
+                "علم",
+                "علّم",
+                "اثبت",
+                "إثبت"
+            );
+
+        private static bool IsAffirmative(string normalized) =>
+            normalized is "اه" or "ايوه" or "اوك" or "تمام" or "ماشي" or "موافق" or "وافق";
+
+        private static List<string> ExtractMutationNames(string message, string kind)
+        {
+            var value = ConvertArabicDigits(message)
+                .Replace("\r\n", "\n")
+                .Replace('،', ',')
+                .Replace(';', ',')
+                .Replace('|', ',');
+
+            var intentPattern = kind switch
+            {
+                "attendance" => @"^(?s).*?(?:غياب|حضور|غايب|حاضر)\s*",
+                "subscriptions" => @"^(?s).*?(?:اشتراكات?|الاشتراكات?)\s*",
+                _ => @"^(?s).*?(?:افتقاد|زياره|زيارة)\s*"
+            };
+
+            value = Regex.Replace(value, intentPattern, "", RegexOptions.IgnoreCase);
+            value = Regex.Replace(
+                value,
+                @"\b(?:الاسماء|الأسماء|اسماء|أسماء|الافراد|الأفراد|افراد|أفراد|الناس|دول|دي|هؤلاء|هم|كلهم)\b",
+                " ",
+                RegexOptions.IgnoreCase
+            );
+            value = Regex.Replace(
+                value,
+                @"\b(?:النهارده|النهاردة|اليوم|(?:الشهر|للشهر|لشهر)\s+(?:ده|دا|الحالي))\b",
+                " ",
+                RegexOptions.IgnoreCase
+            );
+
+            if (kind == "subscriptions")
+            {
+                value = Regex.Replace(value, @"\b(?:شهر|شهور|الاشهر|الأشهر)\b", " ");
+                value = Regex.Replace(value, @"\b(?:20\d{2}|1[0-2]|0?[1-9])\b", " ");
+            }
+
+            var parts = value
+                .Split(new[] { '\n', ',' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(x => x.Trim(' ', '.', ':', '-', 'ـ'))
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .ToList();
+
+            if (parts.Count == 1 && parts[0].Contains(" و ", StringComparison.Ordinal))
+            {
+                var joined = parts[0]
+                    .Split(" و ", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                    .Where(x => x.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length >= 2)
+                    .ToList();
+
+                if (joined.Count > 1)
+                {
+                    parts = joined;
+                }
+            }
+
+            return parts
+                .Select(CleanWriteName)
+                .Where(x => x.Length > 1)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
+        private static string CleanWriteName(string value)
+        {
+            value = Regex.Replace(
+                value,
+                @"^(?:و|ثم|كمان)\s+|\s+(?:النهارده|النهاردة|اليوم)$",
+                " ",
+                RegexOptions.IgnoreCase
+            );
+            return Regex.Replace(value.Trim(), @"\s+", " ");
+        }
+
+        private static bool TryExtractBareNames(string message, out List<string> names)
+        {
+            names = new List<string>();
+            if (!message.Contains('\n') && !message.Contains(',') && !message.Contains('،'))
+            {
+                return false;
+            }
+
+            var normalized = NormalizeArabic(message);
+            if (LooksLikeDataRequest(message) || HasWriteIntent(normalized))
+            {
+                return false;
+            }
+
+            names = message
+                .Replace("\r\n", "\n")
+                .Replace('،', ',')
+                .Split(new[] { '\n', ',' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(x => CleanWriteName(x.Trim(' ', '.', ':', '-', 'ـ')))
+                .Where(x => Regex.IsMatch(x, @"^[\p{L}][\p{L}\s.'-]{1,80}$"))
+                .Where(x => x.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length is >= 2 and <= 6)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            return names.Count >= 2;
+        }
+
+        private static bool TryExtractSubscriptionMonths(
+            string message,
+            DateTime now,
+            out List<int> months,
+            out int year)
+        {
+            months = new List<int>();
+            var normalized = NormalizeArabic(ConvertArabicDigits(message));
+            year = ExtractYearFromMessage(normalized) ?? now.Year;
+
+            if (ContainsAny(normalized, "الشهر ده", "الشهر دا", "الشهر الحالي", "الشهر الحالى"))
+            {
+                months.Add(now.Month);
+            }
+
+            var monthNames = new Dictionary<string, int>
+            {
+                ["يناير"] = 1, ["فبراير"] = 2, ["مارس"] = 3,
+                ["ابريل"] = 4, ["أبريل"] = 4, ["مايو"] = 5,
+                ["يونيو"] = 6, ["يوليو"] = 7, ["اغسطس"] = 8,
+                ["أغسطس"] = 8, ["سبتمبر"] = 9, ["اكتوبر"] = 10,
+                ["أكتوبر"] = 10, ["نوفمبر"] = 11, ["ديسمبر"] = 12
+            };
+
+            foreach (var (name, number) in monthNames)
+            {
+                if (normalized.Contains(NormalizeArabic(name), StringComparison.Ordinal))
+                {
+                    months.Add(number);
+                }
+            }
+
+            foreach (Match match in Regex.Matches(normalized, @"(?<!\d)(1[0-2]|0?[1-9])(?!\d)"))
+            {
+                if (int.TryParse(match.Value, out var month))
+                {
+                    months.Add(month);
+                }
+            }
+
+            months = months.Distinct().OrderBy(x => x).ToList();
+            return months.Count > 0;
+        }
+
+        private static bool TryParsePerPersonMonthAssignments(
+            string message,
+            DateTime now,
+            out Dictionary<string, List<int>> assignments,
+            out int year)
+        {
+            assignments = new Dictionary<string, List<int>>(StringComparer.OrdinalIgnoreCase);
+            year = ExtractYearFromMessage(ConvertArabicDigits(message)) ?? now.Year;
+
+            foreach (var line in message.Replace("\r\n", "\n").Split('\n', StringSplitOptions.RemoveEmptyEntries))
+            {
+                var separator = line.IndexOf(':');
+                if (separator < 1)
+                {
+                    separator = line.IndexOf('：');
+                }
+
+                if (separator < 1)
+                {
+                    continue;
+                }
+
+                var name = CleanWriteName(line[..separator]);
+                var monthsText = line[(separator + 1)..];
+                if (!TryExtractSubscriptionMonths(monthsText, now, out var months, out _))
+                {
+                    continue;
+                }
+
+                assignments[name] = months;
+            }
+
+            return assignments.Count > 0;
+        }
+
+        private static void ExtractVisitationCommand(
+            string message,
+            out string personName,
+            out string result)
+        {
+            var value = Regex.Replace(
+                message,
+                @"^(?s).*?(?:افتقاد|زياره|زيارة)\s*",
+                "",
+                RegexOptions.IgnoreCase
+            ).Trim();
+
+            var marker = Regex.Match(
+                value,
+                @"(?:،|,|\n|\s+-\s|\s*:\s*|ناتج\s+الافتقاد\s*[:：-]?|النتيجه\s*[:：-]?|النتيجة\s*[:：-]?)",
+                RegexOptions.IgnoreCase
+            );
+
+            if (!marker.Success)
+            {
+                personName = CleanWriteName(value);
+                result = "";
+                return;
+            }
+
+            personName = CleanWriteName(value[..marker.Index]);
+            result = value[(marker.Index + marker.Length)..].Trim(' ', ':', '：', '-', '،', ',');
+        }
+
+        private static bool TryExtractPendingVisitation(
+            string message,
+            List<string> pendingNames,
+            out string name,
+            out string result)
+        {
+            name = pendingNames
+                .OrderByDescending(x => x.Length)
+                .FirstOrDefault(x => NormalizeArabic(message).Contains(NormalizeArabic(x)))
+                ?? "";
+
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                result = "";
+                return false;
+            }
+
+            var index = NormalizeArabic(message).IndexOf(NormalizeArabic(name), StringComparison.Ordinal);
+            // Normalization can change string length, so use a direct lookup
+            // first and fall back to everything after the typed name length.
+            var directIndex = message.IndexOf(name, StringComparison.OrdinalIgnoreCase);
+            var start = directIndex >= 0 ? directIndex + name.Length : Math.Min(message.Length, index + name.Length);
+            result = message[start..].Trim(' ', ':', '：', '-', '،', ',', '.');
+            return !string.IsNullOrWhiteSpace(result);
+        }
+
+        private async Task<(List<ResolvedWritePerson> People, List<string> Errors)>
+            ResolveWritePeopleAsync(
+                IEnumerable<string> names,
+                List<GradeResult> grades,
+                string authorization)
+        {
+            var resolved = new List<ResolvedWritePerson>();
+            var errors = new List<string>();
+
+            foreach (var requestedName in names)
+            {
+                var matches = await FindPeopleByName(requestedName, grades, authorization);
+                var exact = matches
+                    .Where(x => NormalizeArabic(x.Name) == NormalizeArabic(requestedName))
+                    .ToList();
+
+                var usable = exact.Count > 0 ? exact : matches;
+                if (usable.Count == 0)
+                {
+                    errors.Add($"ملقتش «{requestedName}» في المراحل المتاحة لك.");
+                    continue;
+                }
+
+                if (usable.Count > 1)
+                {
+                    var choices = string.Join(
+                        "، ",
+                        usable.Take(5).Select(person =>
+                        {
+                            var grade = grades.FirstOrDefault(x => x.Id == person.Grade);
+                            return $"{person.Name} ({grade?.Name ?? "مرحلة غير معروفة"})";
+                        })
+                    );
+                    errors.Add($"الاسم «{requestedName}» محتاج تحديد: {choices}.");
+                    continue;
+                }
+
+                var person = usable[0];
+                var gradeResult = grades.FirstOrDefault(x => x.Id == person.Grade);
+                if (!person.Id.HasValue || gradeResult == null)
+                {
+                    errors.Add($"بيانات «{requestedName}» ناقصة، فماتمش أي تسجيل له.");
+                    continue;
+                }
+
+                if (resolved.All(x => x.Person.Id != person.Id))
+                {
+                    resolved.Add(new ResolvedWritePerson
+                    {
+                        RequestedName = requestedName,
+                        Person = person,
+                        Grade = gradeResult
+                    });
+                }
+            }
+
+            return (resolved, errors);
+        }
+
+        private IActionResult WriteResolutionError(
+            string conversationId,
+            IReadOnlyCollection<string> errors)
+        {
+            return Ok(new
+            {
+                conversationId,
+                type = "write_names_unresolved",
+                answer = "موقفتش على اسم مؤكد، علشان كده مسجلتش أي حاجة لحد ما نحددهم صح:\n" +
+                         string.Join("\n", errors.Select(x => $"• {x}"))
+            });
+        }
+
+        private async Task<Users?> GetCurrentWriteUserAsync()
+        {
+            var claim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            return int.TryParse(claim, out var userId)
+                ? await _db.Users.FirstOrDefaultAsync(x => x.Id == userId)
+                : null;
+        }
+
+        private async Task<IActionResult> RegisterAttendanceAsync(
+            List<string> names,
+            Status status,
+            DateTime date,
+            List<GradeResult> grades,
+            string authorization,
+            string conversationId)
+        {
+            var user = await GetCurrentWriteUserAsync();
+            if (user == null)
+            {
+                return ChatMessage(conversationId, "جلسة تسجيل الدخول مش واضحة. سجل دخولك من جديد وجرب تاني.");
+            }
+
+            var resolution = await ResolveWritePeopleAsync(names, grades, authorization);
+            if (resolution.Errors.Count > 0)
+            {
+                return WriteResolutionError(conversationId, resolution.Errors);
+            }
+
+            var ids = resolution.People.Select(x => x.Person.Id!.Value).ToList();
+            var students = await _db.Students
+                .Where(x => ids.Contains(x.Id) && x.churchServiceID == user.churchServiceID)
+                .ToDictionaryAsync(x => x.Id);
+
+            if (students.Count != ids.Count)
+            {
+                return ChatMessage(conversationId, "في اسم خارج الخدمة المسموح بها لحسابك، فماتمش التسجيل حفاظًا على البيانات.");
+            }
+
+            var existing = await _db.Attendance
+                .Where(x => ids.Contains(x.studentID) && x.Date == date.Date)
+                .ToDictionaryAsync(x => x.studentID);
+            var timestamp = GetEgyptNow();
+
+            foreach (var member in resolution.People)
+            {
+                var studentId = member.Person.Id!.Value;
+                if (existing.TryGetValue(studentId, out var record))
+                {
+                    record.Status = status;
+                    record.userID = user.Id;
+                    record.LastUpdated = timestamp;
+                }
+                else
+                {
+                    _db.Attendance.Add(new Attendance
+                    {
+                        studentID = studentId,
+                        userID = user.Id,
+                        Date = date.Date,
+                        Status = status,
+                        LastUpdated = timestamp
+                    });
+                }
+            }
+
+            await _db.SaveChangesAsync();
+            var label = status == Status.Absent ? "غياب" : "حضور";
+            var builder = new StringBuilder();
+            builder.AppendLine($"تم تسجيل {label} بتاريخ {date:yyyy-MM-dd} ✅");
+            foreach (var member in resolution.People)
+            {
+                builder.AppendLine($"• {member.Person.Name} — {member.Grade.Name}");
+            }
+            builder.Append($"التسجيل تم بواسطة {DisplayUserName(user.UserName)} الساعة {timestamp:HH:mm} ⏰");
+
+            return Ok(new
+            {
+                conversationId,
+                type = "attendance_registered",
+                answer = builder.ToString(),
+                date = date.ToString("yyyy-MM-dd"),
+                status = label,
+                recordedBy = user.UserName,
+                data = resolution.People.Select(x => new
+                {
+                    person = ToBasicPerson(x.Person),
+                    grade = new { id = x.Grade.Id, name = x.Grade.Name }
+                })
+            });
+        }
+
+        private async Task<IActionResult> RegisterSubscriptionsAsync(
+            List<string> names,
+            List<int> months,
+            int year,
+            List<GradeResult> grades,
+            string authorization,
+            string conversationId)
+        {
+            var assignments = names.ToDictionary(
+                x => x,
+                _ => months,
+                StringComparer.OrdinalIgnoreCase
+            );
+            return await RegisterSubscriptionsByAssignmentsAsync(
+                assignments,
+                year,
+                grades,
+                authorization,
+                conversationId
+            );
+        }
+
+        private async Task<IActionResult> RegisterSubscriptionsByAssignmentsAsync(
+            Dictionary<string, List<int>> assignments,
+            int year,
+            List<GradeResult> grades,
+            string authorization,
+            string conversationId)
+        {
+            var user = await GetCurrentWriteUserAsync();
+            if (user == null)
+            {
+                return ChatMessage(conversationId, "جلسة تسجيل الدخول مش واضحة. سجل دخولك من جديد وجرب تاني.");
+            }
+
+            var resolution = await ResolveWritePeopleAsync(assignments.Keys, grades, authorization);
+            if (resolution.Errors.Count > 0)
+            {
+                return WriteResolutionError(conversationId, resolution.Errors);
+            }
+
+            var serviceCode = await _db.Users
+                .Where(x => x.Id == user.Id)
+                .Select(x => x.ChurchServices.Services.Code)
+                .FirstOrDefaultAsync();
+
+            if (string.IsNullOrWhiteSpace(serviceCode))
+            {
+                return ChatMessage(conversationId, "كود الخدمة مش متاح، فمسجلتش الاشتراكات علشان الأسعار ماتتحسبش غلط.");
+            }
+
+            SubscriptionServiceSettingsDocument? settings;
+            try
+            {
+                settings = await _settingsService.GetSubscriptionSettingsAsync(serviceCode);
+            }
+            catch
+            {
+                settings = null;
+            }
+
+            if (settings?.Settings == null)
+            {
+                return ChatMessage(conversationId, "إعدادات الاشتراكات مش متاحة دلوقتي، فمسجلتش أي اشتراك علشان ماحسبش مبلغ غلط.");
+            }
+
+            var requested = new List<(ResolvedWritePerson Member, int Month)>();
+            foreach (var member in resolution.People)
+            {
+                requested.AddRange(assignments[member.RequestedName]
+                    .Distinct()
+                    .Where(x => x is >= 1 and <= 12)
+                    .Select(month => (member, month)));
+            }
+
+            var valid = new List<SubscriptionWriteItem>();
+            var skipped = new List<string>();
+            var today = GetEgyptNow().Date;
+
+            foreach (var item in requested)
+            {
+                var targetMonth = new DateTime(year, item.Month, 1);
+                if (targetMonth > new DateTime(today.Year, today.Month, 1))
+                {
+                    skipped.Add($"{item.Member.Person.Name} — {item.Month}/{year}: شهر لسه مجاش");
+                    continue;
+                }
+
+                SubscriptionBalanceResult calculation;
+                try
+                {
+                    calculation = _subscriptionCalculator.CalculateBalance(
+                        settings,
+                        item.Member.Grade.Id,
+                        InferHasJob(item.Member.Person),
+                        Array.Empty<SubscriptionPaymentSnapshot>(),
+                        GetStudentCalculationStart(item.Member.Person, targetMonth),
+                        targetMonth,
+                        today
+                    );
+                }
+                catch
+                {
+                    skipped.Add($"{item.Member.Person.Name} — {item.Month}/{year}: إعدادات المرحلة ناقصة");
+                    continue;
+                }
+
+                var monthResult = calculation.Months.FirstOrDefault(x =>
+                    x.Year == year && x.Month == item.Month);
+
+                if (monthResult == null)
+                {
+                    skipped.Add($"{item.Member.Person.Name} — {item.Month}/{year}: الشهر ده مفيهوش اشتراك حسب الإعدادات");
+                    continue;
+                }
+
+                if (!monthResult.HasPriceConfiguration || !monthResult.Amount.HasValue)
+                {
+                    skipped.Add($"{item.Member.Person.Name} — {item.Month}/{year}: السعر مش متحدد");
+                    continue;
+                }
+
+                valid.Add(new SubscriptionWriteItem
+                {
+                    Member = item.Member,
+                    Month = item.Month,
+                    Year = year,
+                    Amount = monthResult.Amount.Value
+                });
+            }
+
+            if (valid.Count == 0)
+            {
+                var reason = skipped.Count == 0 ? "مفيش شهور صالحة للتسجيل." : string.Join("\n", skipped.Select(x => $"• {x}"));
+                return ChatMessage(conversationId, "مسجلتش أي اشتراك:\n" + reason);
+            }
+
+            var studentIds = valid.Select(x => x.Member.Person.Id!.Value).Distinct().ToList();
+            var existing = await _db.Subscriptions
+                .Where(x => studentIds.Contains(x.studentID) && x.year == year)
+                .ToListAsync();
+            var timestamp = GetEgyptNow();
+
+            foreach (var item in valid)
+            {
+                var record = existing.FirstOrDefault(x =>
+                    x.studentID == item.Member.Person.Id && x.month == item.Month);
+
+                if (record != null)
+                {
+                    item.WasAlreadyPaid = record.isPaid;
+                    if (!record.isPaid)
+                    {
+                        record.isPaid = true;
+                        record.userID = user.Id;
+                        record.LastUpdated = timestamp;
+                    }
+                }
+                else
+                {
+                    _db.Subscriptions.Add(new Subscriptions
+                    {
+                        studentID = item.Member.Person.Id!.Value,
+                        userID = user.Id,
+                        month = item.Month,
+                        year = item.Year,
+                        isPaid = true,
+                        LastUpdated = timestamp
+                    });
+                }
+            }
+
+            await _db.SaveChangesAsync();
+            var newlyCollected = valid.Where(x => !x.WasAlreadyPaid).Sum(x => x.Amount);
+            var builder = new StringBuilder();
+            builder.AppendLine("تم تسجيل الاشتراكات ✅💰");
+            foreach (var group in valid.GroupBy(x => x.Member.Person.Id))
+            {
+                var first = group.First();
+                var monthText = string.Join("، ", group.Select(x => $"{x.Month}/{x.Year} = {x.Amount:0.##}"));
+                var already = group.All(x => x.WasAlreadyPaid) ? " (كان متسجل مدفوع قبل كده)" : "";
+                builder.AppendLine($"• {first.Member.Person.Name} — {first.Member.Grade.Name}: {monthText}{already}");
+            }
+
+            if (skipped.Count > 0)
+            {
+                builder.AppendLine("\nاللي ماتسجلش:");
+                foreach (var item in skipped)
+                {
+                    builder.AppendLine($"• {item}");
+                }
+            }
+
+            builder.Append($"\nالمفروض تكون لميت {newlyCollected:0.##} فلوس يا {DisplayUserName(user.UserName)} 😄💵");
+
+            return Ok(new
+            {
+                conversationId,
+                type = "subscriptions_registered",
+                answer = builder.ToString(),
+                expectedCollected = newlyCollected,
+                recordedBy = user.UserName,
+                data = valid.Select(x => new
+                {
+                    person = ToBasicPerson(x.Member.Person),
+                    grade = new { id = x.Member.Grade.Id, name = x.Member.Grade.Name },
+                    month = x.Month,
+                    year = x.Year,
+                    amount = x.Amount,
+                    alreadyPaid = x.WasAlreadyPaid
+                })
+            });
+        }
+
+        private static bool InferHasJob(PersonResult person)
+        {
+            if (string.IsNullOrWhiteSpace(person.Role))
+            {
+                return false;
+            }
+
+            var role = NormalizeArabic(person.Role);
+            return !ContainsAny(
+                role,
+                "طالب",
+                "بدون عمل",
+                "لا يعمل",
+                "مش شغال",
+                "غير موظف"
+            );
+        }
+
+        private async Task<IActionResult> RegisterVisitationAsync(
+            string name,
+            string result,
+            DateTime date,
+            List<GradeResult> grades,
+            string authorization,
+            string conversationId)
+        {
+            var user = await GetCurrentWriteUserAsync();
+            if (user == null)
+            {
+                return ChatMessage(conversationId, "جلسة تسجيل الدخول مش واضحة. سجل دخولك من جديد وجرب تاني.");
+            }
+
+            var resolution = await ResolveWritePeopleAsync(new[] { name }, grades, authorization);
+            if (resolution.Errors.Count > 0)
+            {
+                return WriteResolutionError(conversationId, resolution.Errors);
+            }
+
+            var member = resolution.People[0];
+            _db.Visitations.Add(new Visitations
+            {
+                studentID = member.Person.Id!.Value,
+                userID = user.Id,
+                Date = date.Date,
+                comment = result.Trim()
+            });
+            await _db.SaveChangesAsync();
+
+            return Ok(new
+            {
+                conversationId,
+                type = "visitation_registered",
+                answer = $"تم تسجيل الافتقاد تمام ✅🙏\n• {member.Person.Name} — {member.Grade.Name}\n• النتيجة: {result.Trim()}\n• بتاريخ {date:yyyy-MM-dd} بواسطة {DisplayUserName(user.UserName)}",
+                person = ToBasicPerson(member.Person),
+                grade = new { id = member.Grade.Id, name = member.Grade.Name },
+                date = date.ToString("yyyy-MM-dd"),
+                recordedBy = user.UserName
+            });
+        }
+
+        private async Task<IActionResult> ShowNamedPeopleDetailsAsync(
+            List<string> names,
+            List<GradeResult> grades,
+            string authorization,
+            string conversationId)
+        {
+            var resolution = await ResolveWritePeopleAsync(names, grades, authorization);
+            if (resolution.Errors.Count > 0)
+            {
+                return WriteResolutionError(conversationId, resolution.Errors);
+            }
+
+            var builder = new StringBuilder("تمام، دي معلومات كل فرد 👌\n");
+            foreach (var member in resolution.People)
+            {
+                builder.AppendLine($"\n{BuildPersonDetailsAnswer(member.Person)}");
+                builder.AppendLine($"المرحلة: {member.Grade.Name}");
+            }
+
+            return Ok(new
+            {
+                conversationId,
+                type = "people_details",
+                answer = builder.ToString().Trim(),
+                data = resolution.People.Select(x => new
+                {
+                    person = x.Person,
+                    grade = new { id = x.Grade.Id, name = x.Grade.Name }
+                })
+            });
+        }
+
+        private static string DisplayUserName(string? userName)
+        {
+            if (string.IsNullOrWhiteSpace(userName))
+            {
+                return "خادمنا";
+            }
+
+            var value = userName.Trim();
+            var at = value.IndexOf('@');
+            return at > 0 ? value[..at] : value;
         }
 
         // =========================================================
@@ -5839,6 +7064,20 @@ namespace church.Controllers
                 return DedupPeople(exactMatches);
             }
 
+            // Exact name-token matches (for example, the single query
+            // "ماجد") are not fuzzy guesses. Return all of them across
+            // every authorized grade instead of letting the first seven
+            // records in grade order hide matches from later grades.
+            var exactTokenMatches = scored
+                .Where(match => match.Score >= 1.0)
+                .Select(match => match.Person)
+                .ToList();
+
+            if (exactTokenMatches.Count > 0)
+            {
+                return DedupPeople(exactTokenMatches);
+            }
+
             return DedupPeople(
                 scored
                     .OrderByDescending(x => x.Score)
@@ -6695,8 +7934,8 @@ namespace church.Controllers
             {
                 builder.AppendLine(
                     record.IsPaid == true
-                        ? "الحالة: تم دفع الاشتراك"
-                        : "الحالة: لم يتم دفع الاشتراك"
+                        ? "✅ مدفوع — تم دفع الاشتراك"
+                        : "❌ غير مدفوع — لم يتم دفع الاشتراك"
                 );
 
                 if (action.IncludeAudit &&
@@ -6757,7 +7996,7 @@ namespace church.Controllers
                 }
 
                 builder.AppendLine(
-                    $"{period.Month}/{period.Year}: {(record.IsPaid == true ? "مدفوع" : "غير مدفوع")}"
+                    $"{period.Month}/{period.Year}: {(record.IsPaid == true ? "✅ مدفوع" : "❌ غير مدفوع")}"
                 );
 
                 if (action.IncludeAudit &&
@@ -6846,7 +8085,7 @@ namespace church.Controllers
                 foreach (var record in show)
                 {
                     builder.AppendLine(
-                        $"• {record.StudentName} — {(record.IsPaid == true ? "مدفوع" : "غير مدفوع")}"
+                        $"• {record.StudentName} — {(record.IsPaid == true ? "✅ مدفوع" : "❌ غير مدفوع")}"
                     );
                 }
 
@@ -6890,10 +8129,10 @@ namespace church.Controllers
             {
                 builder.AppendLine($"• {SafeText(report.Person.Name)}");
                 builder.AppendLine(
-                    $"  الأشهر المدفوعة: {FormatMonthList(report.PaidMonths)}"
+                    $"  ✅ الأشهر المدفوعة: {FormatMonthList(report.PaidMonths, "✅ ")}"
                 );
                 builder.AppendLine(
-                    $"  الأشهر غير المدفوعة: {FormatMonthList(report.UnpaidMonths)}"
+                    $"  ❌ الأشهر غير المدفوعة: {FormatMonthList(report.UnpaidMonths, "❌ ")}"
                 );
 
                 if (report.TotalDue.HasValue)
@@ -6923,8 +8162,10 @@ namespace church.Controllers
             return builder.ToString().Trim();
         }
 
-        private static string FormatMonthList(List<string> months) =>
-            months.Count == 0 ? "لا يوجد" : string.Join("، ", months);
+        private static string FormatMonthList(List<string> months, string marker = "") =>
+            months.Count == 0
+                ? "لا يوجد"
+                : string.Join("، ", months.Select(month => $"{marker}{month}"));
 
         private static string BuildPersonVisitationAnswer(
             PersonResult person,
@@ -8205,7 +9446,9 @@ namespace church.Controllers
 
             return
                 $"""
-                أنت مساعد ذكي لنظام إدارة خدمة كنسية.
+                اسمك Tagoy، صديق المستخدم ومساعده الذكي داخل نظام إدارة الخدمة الكنسية.
+                تم بناؤك للمساعدة في تنظيم الخدمة، والوصول للمعلومات، وتسهيل الحضور والاشتراكات والافتقاد.
+                الذي قام ببنائك وبرمجتك هو مينا ماجد. عند السؤال عن هويتك أو من بناك، اذكر ذلك بثقة وبأسلوب مصري ذكي ودافئ، وعبّر عن قوة ودقة البناء بدون اختراع معلومات شخصية إضافية.
 
                 دورك الأساسي:
                 فهم رسالة المستخدم واختيار Tool المناسبة فقط.
@@ -8552,6 +9795,31 @@ namespace church.Controllers
 
                     message =
                         "هات اشتراكاته"
+                }
+            };
+        }
+
+        private static object[] SubscriptionFollowUpActions()
+        {
+            return new object[]
+            {
+                new
+                {
+                    action = "quick_reply",
+                    label = "اشتراكات الشهر السابق",
+                    message = "هات اشتراكاته الشهر اللي فات"
+                },
+                new
+                {
+                    action = "quick_reply",
+                    label = "اشتراكات العام الحالي",
+                    message = "هات اشتراكاته السنة دي"
+                },
+                new
+                {
+                    action = "quick_reply",
+                    label = "اشتراكات الشهر الحالي",
+                    message = "هات اشتراكاته الشهر ده"
                 }
             };
         }

@@ -1,5 +1,6 @@
 using church.Models;
 using church.Extensions;
+using church.Data;
 
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -175,6 +176,12 @@ namespace church
             // =====================================================
 
             var app = builder.Build();
+
+            using (var scope = app.Services.CreateScope())
+            {
+                var db = scope.ServiceProvider.GetRequiredService<context>();
+                ChoirStageAccountsSeeder.SeedAsync(db).GetAwaiter().GetResult();
+            }
 
             // =====================================================
             // CORS
