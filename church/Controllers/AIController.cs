@@ -505,6 +505,30 @@ namespace church.Controllers
                 return writeResponse;
             }
 
+            // A bare stage name means that exact top-level stage.  For
+            // example, "ثانوي" resolves to "مرحلة ثانوي" and never to
+            // أولى/تانية/تالتة ثانوي unless the user says the year.
+            if (TryResolveStandaloneGradeRequest(
+                    message,
+                    grades,
+                    out var standaloneGradeId))
+            {
+                var action = session.PendingGroupAction == null
+                    ? new GroupAction { Kind = "people" }
+                    : CloneGroupAction(session.PendingGroupAction);
+
+                action.GradeId = standaloneGradeId;
+                session.PendingGroupAction = null;
+
+                return await ExecuteGroupAction(
+                    action,
+                    session,
+                    grades,
+                    authorization,
+                    conversationId
+                );
+            }
+
             if (IsOtherPersonChoice(message))
             {
                 session.AwaitingPersonName = true;
@@ -1255,10 +1279,18 @@ namespace church.Controllers
             if (functionName ==
                 "get_students_by_grade")
             {
-                if (!TryGetInt(
+                var gradeResolvedFromMessage =
+                    TryResolveGradeFromMessage(
+                        message,
+                        grades,
+                        out var gradeId
+                    );
+
+                if (!gradeResolvedFromMessage &&
+                    !TryGetInt(
                         args,
                         "grade_id",
-                        out var gradeId))
+                        out gradeId))
                 {
                     return AskForGrade(
                         new GroupAction
@@ -1461,6 +1493,17 @@ namespace church.Controllers
                         message,
                         egyptNow
                     );
+
+                // The user's written stage is authoritative.  This also
+                // protects generic "ثانوي"/"إعدادي" from a model choosing
+                // one of the numbered school years in the tool arguments.
+                if (TryResolveGradeFromMessage(
+                        message,
+                        grades,
+                        out var messageGradeId))
+                {
+                    action.GradeId = messageGradeId;
+                }
 
                 if (!action.GradeId.HasValue)
                 {
@@ -9455,6 +9498,7 @@ namespace church.Controllers
 
                 افهم اللهجة المصرية والأخطاء الإملائية الشائعة، ولا تتعامل مع كل كلمة منفردة بمعزل عن بقية الرسالة أو سياق المحادثة.
                 طابق اسم المرحلة مع القائمة الحالية بأقرب تطابق واضح وفريد؛ إذا كتب المستخدم "مرحله خدام" وكانت القائمة تحتوي "مرحلة خدام" فهذه هي المرحلة المقصودة، ولا تسأل عن مرحلة أخرى.
+                قاعدة حاسمة للمراحل الدراسية: لو قال المستخدم "ثانوي" أو "مرحلة ثانوي" بدون تحديد سنة، فهو يقصد المرحلة العامة المسماة "مرحلة ثانوي" فقط، وليس أولى أو تانية أو تالتة ثانوي. ونفس القاعدة لـ"إعدادي" و"مرحلة إعدادي": اختَر المرحلة العامة فقط، ولا تختَر أولى/تانية/تالتة إلا لو ذكرها المستخدم صراحة. اسم المرحلة العام المكتوب في الرسالة له الأولوية على أي grade_id قد يبدو قريباً.
                 كلمة "الخدام" قد تعني مجموعة/مرحلة خدام وليست اسماً لشخص، إلا إذا ظهر اسم شخص كامل بوضوح.
                 إذا كانت المتابعة مثل "والغياب؟" أو "هات الاشتراكات كمان"، استخدم آخر مرحلة وفترة من طلب المجموعة السابق ما لم يذكر المستخدم مرحلة أو فترة جديدة.
                 لا تعرض خيارات أو تطلب من المستخدم إعادة معلومة واضحة بالفعل في رسالته أو سياق المحادثة.
@@ -10368,6 +10412,27 @@ namespace church.Controllers
                 return true;
             }
 
+            // Conversely, when a school year is explicitly written, prefer
+            // the grade carrying both that year and the broad stage.
+            if (TryResolveSpecificSchoolYearGrade(
+                    normalized,
+                    grades,
+                    out gradeId))
+            {
+                return true;
+            }
+
+            // If the user names only the broad school stage, prefer the
+            // canonical top-level grade before looking at substring matches.
+            // "ثانوي" must mean "مرحلة ثانوي", not one of its school years.
+            if (TryResolveBaseStageGrade(
+                    normalized,
+                    grades,
+                    out gradeId))
+            {
+                return true;
+            }
+
             // Match a complete grade name inside the sentence, but
             // never choose when more than one current grade matches.
             var nameMatches =
@@ -10437,6 +10502,232 @@ namespace church.Controllers
             }
 
             return false;
+        }
+
+        private static bool TryResolveSpecificSchoolYearGrade(
+            string normalizedMessage,
+            List<GradeResult> grades,
+            out int gradeId)
+        {
+            gradeId = 0;
+            var category = GetGradeCategory(normalizedMessage);
+            if (category == null)
+            {
+                return false;
+            }
+
+            var year = GetCanonicalSchoolYear(normalizedMessage);
+            if (year == null)
+            {
+                return false;
+            }
+
+            var canonicalCategory = CanonicalizeStageToken(category);
+            var matches = grades
+                .Where(grade =>
+                {
+                    var normalizedGrade = NormalizeArabic(ConvertArabicDigits(grade.Name));
+                    return CanonicalizeGradeText(normalizedGrade)
+                               .Contains(canonicalCategory, StringComparison.Ordinal)
+                           && GetCanonicalSchoolYear(normalizedGrade) == year;
+                })
+                .ToList();
+
+            if (matches.Count != 1)
+            {
+                return false;
+            }
+
+            gradeId = matches[0].Id;
+            return true;
+        }
+
+        private static bool TryResolveStandaloneGradeRequest(
+            string message,
+            List<GradeResult> grades,
+            out int gradeId)
+        {
+            gradeId = 0;
+            var normalized = NormalizeArabic(ConvertArabicDigits(message));
+
+            if (string.IsNullOrWhiteSpace(normalized) ||
+                ContainsAny(
+                    normalized,
+                    "غياب",
+                    "حضور",
+                    "اشتراك",
+                    "زياره",
+                    "زيارة",
+                    "افتقاد",
+                    "بيانات",
+                    "تفاصيل",
+                    "تليفون",
+                    "رقم",
+                    "عنوان"))
+            {
+                return false;
+            }
+
+            if (!HasGradeCategoryMention(normalized))
+            {
+                return false;
+            }
+
+            // Keep this deterministic path for genuinely bare stage requests.
+            // Any unexplained words probably mean the user is asking a
+            // different question and should continue to the normal router.
+            var removableWords = new HashSet<string>(StringComparer.Ordinal)
+            {
+                "مرحله", "المرحله", "طلاب", "الطلاب", "افراد", "الافراد",
+                "ناس", "الناس", "هات", "جيب", "اعرض", "وريني", "عايز",
+                "عاوز", "عاوزه", "لو", "سمحت", "من", "في", "ف", "بتوع",
+                "بس", "فقط", "كل", "قائمه", "قائمة"
+            };
+
+            var meaningfulTokens = normalized
+                .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                .Select(token => token.Trim('،', ',', '.', '؟', '?', ':', ';', 'ـ'))
+                .Where(token => token.Length > 0 && !removableWords.Contains(token))
+                .ToList();
+
+            var allowedTokens = new HashSet<string>(StringComparer.Ordinal)
+            {
+                "ابتدائي", "ابتدايي", "ابتدائيه",
+                "اعدادي", "اعداديه",
+                "ثانوي", "ثانويه",
+                "جامعه", "جامعي", "خريجين",
+                "خدام", "خادم", "خدامين",
+                "اولي", "الاول", "الاولي", "اول",
+                "تانيه", "ثانيه", "الثاني", "الثانيه", "ثاني",
+                "تالته", "ثالثه", "الثالث", "الثالثه", "ثالث",
+                "1", "2", "3"
+            };
+
+            if (meaningfulTokens.Count == 0 ||
+                meaningfulTokens.Any(token => !allowedTokens.Contains(token)))
+            {
+                return false;
+            }
+
+            return TryResolveGradeFromMessage(message, grades, out gradeId);
+        }
+
+        private static bool TryResolveBaseStageGrade(
+            string normalizedMessage,
+            List<GradeResult> grades,
+            out int gradeId)
+        {
+            gradeId = 0;
+            var category = GetGradeCategory(normalizedMessage);
+
+            if (category == null || HasExplicitSchoolYear(normalizedMessage))
+            {
+                return false;
+            }
+
+            var canonicalCategory = CanonicalizeStageToken(category);
+            var baseMatches = grades
+                .Where(grade =>
+                    NormalizeBaseStageName(grade.Name) == canonicalCategory)
+                .ToList();
+
+            if (baseMatches.Count != 1)
+            {
+                return false;
+            }
+
+            gradeId = baseMatches[0].Id;
+            return true;
+        }
+
+        private static bool HasExplicitSchoolYear(string normalizedMessage)
+        {
+            return GetCanonicalSchoolYear(normalizedMessage) != null;
+        }
+
+        private static string? GetCanonicalSchoolYear(string normalizedMessage)
+        {
+            var tokens = normalizedMessage
+                .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                .Select(token => token.Trim('،', ',', '.', '؟', '?', ':', ';', 'ـ'))
+                .ToHashSet(StringComparer.Ordinal);
+
+            if (tokens.Overlaps(new[]
+            {
+                "اولي", "الاول", "الاولي", "اول"
+            }))
+            {
+                return "1";
+            }
+
+            if (tokens.Overlaps(new[]
+            {
+                "تانيه", "ثانيه", "الثاني", "الثانيه", "ثاني"
+            }))
+            {
+                return "2";
+            }
+
+            if (tokens.Overlaps(new[]
+            {
+                "تالته", "ثالثه", "الثالث", "الثالثه", "ثالث"
+            }))
+            {
+                return "3";
+            }
+
+            var numericYear = Regex.Match(
+                normalizedMessage,
+                @"(?:^|\s)(?:صف|سنه|سنة)\s*([123])(?:\s|$)|(?:^|\s)([123])\s*(?:اعدادي|اعداديه|ثانوي|ثانويه)(?:\s|$)"
+            );
+
+            if (numericYear.Success)
+            {
+                return numericYear.Groups[1].Success
+                    ? numericYear.Groups[1].Value
+                    : numericYear.Groups[2].Value;
+            }
+
+            return null;
+        }
+
+        private static string CanonicalizeGradeText(string value)
+        {
+            return string.Join(
+                ' ',
+                value.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                    .Select(CanonicalizeStageToken)
+            );
+        }
+
+        private static string NormalizeBaseStageName(string gradeName)
+        {
+            var ignored = new HashSet<string>(StringComparer.Ordinal)
+            {
+                "مرحله", "المرحله", "خدمه", "الخدمه", "طلاب", "الطلاب", "عام"
+            };
+
+            var tokens = NormalizeArabic(ConvertArabicDigits(gradeName))
+                .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                .Select(token => token.Trim('،', ',', '.', 'ـ'))
+                .Where(token => token.Length > 0 && !ignored.Contains(token))
+                .Select(CanonicalizeStageToken)
+                .ToList();
+
+            return string.Join(' ', tokens);
+        }
+
+        private static string CanonicalizeStageToken(string value)
+        {
+            return NormalizeArabic(value) switch
+            {
+                "ابتدايي" or "ابتدائيه" => "ابتدائي",
+                "اعداديه" => "اعدادي",
+                "ثانويه" => "ثانوي",
+                "جامعي" => "جامعه",
+                "خادم" or "خدامين" => "خدام",
+                var normalized => normalized
+            };
         }
 
         private static GradeResult?
